@@ -20,7 +20,7 @@ cp .env.example .env
 ```bash
 npm run migrate
 ```
-This will import all pantries from `../pantries.json` into the SQLite database.
+This will import all pantries from `../frontend/pantries.json` into the SQLite database.
 
 4. **Start server:**
 ```bash

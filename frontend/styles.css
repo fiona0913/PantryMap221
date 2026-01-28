@@ -46,7 +46,7 @@ body.modal-open {
   position: relative;
   z-index: 1001;
 }
-.brand { display: flex; gap: 12px; align-items: center; }
+.brand { display: flex; gap: 12px; align-items: center; text-decoration: none; color: var(--text); }
 .brand .logo { font-size: 32px; }
 .brand .title { 
   font-weight: 600; 
@@ -78,39 +78,6 @@ body.modal-open {
   font-weight: 600;
   background: rgba(82, 183, 136, 0.18);
 }
-.controls {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-.header-cta {
-  color: var(--muted);
-  text-decoration: none;
-  font-weight: 500;
-  font-size: 15px;
-  padding: 8px 18px;
-  border-radius: 16px;
-  border: 1px solid var(--border);
-  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
-}
-.header-cta:hover {
-  color: var(--primary);
-  border-color: rgba(82, 183, 136, 0.4);
-  background: rgba(82, 183, 136, 0.12);
-}
-.controls select {
-  background: var(--panel);
-  color: var(--text);
-  border: 1px solid var(--border);
-  padding: 8px 16px;
-  border-radius: 8px;
-  font-size: 14px;
-  cursor: pointer;
-}
-.controls select:hover {
-  border-color: var(--accent);
-}
-
 .layout { 
   position: relative; 
   height: calc(100% - 65px); 
@@ -638,44 +605,6 @@ body.modal-open {
   font-weight: 600;
   font-size: 13px;
 }
-.support-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-}
-.support-card {
-  background: #f1f5f9;
-  border-radius: 20px;
-  border: 1px solid rgba(71, 85, 105, 0.18);
-  padding: 18px;
-  font-size: 15px;
-  font-weight: 600;
-  color: #1f2937;
-  text-align: center;
-  cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-.support-card span {
-  display: block;
-  margin-top: 6px;
-  font-weight: 500;
-  color: var(--muted);
-}
-.support-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.12);
-}
-.safety-link {
-  border: none;
-  background: none;
-  color: var(--primary);
-  font-weight: 600;
-  font-size: 14px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-}
 .message-section {
   gap: 20px;
 }
@@ -724,7 +653,6 @@ body.modal-open {
   color: var(--muted);
 }
 .stock-section,
-.support-grid,
 .wishlist-grid,
 .message-list {
   width: 100%;
@@ -1265,12 +1193,6 @@ body.modal-open {
     grid-template-columns: 1fr;
     gap: 16px;
   }
-  .support-grid {
-    grid-template-columns: 1fr;
-  }
-  .support-card {
-    padding: 16px;
-  }
   .wishlist-grid {
     gap: 10px;
   }
@@ -1292,9 +1214,6 @@ body.modal-open {
   .wishlist-chip {
     font-size: 13px;
     padding: 8px 14px;
-  }
-  .support-card {
-    font-size: 14px;
   }
   .message-cta {
     font-size: 14px;

@@ -8,7 +8,10 @@
   let allPantries = [];
   let wishlistState = {
     items: [],
-    expanded: false,
+    pantryId: null
+  };
+  let messageState = {
+    items: [],
     pantryId: null,
     root: null
   };
@@ -383,6 +386,7 @@
     loadLatestLivePhoto(pantry);
     bindLivePhotoUploader(detailsContent, pantry);
     bindWishlistModule(detailsContent, pantry);
+    bindMessageModule(detailsContent, pantry);
     
     // Show details panel
     const detailsPanel = document.getElementById('details');
@@ -430,7 +434,6 @@
       <section class="detail-section telemetry-section">
         <div class="section-heading-row">
           <h2>Sensor data</h2>
-          ${pantry.id ? `<a class="section-link" href="./telemetry-history.html?pantryId=${encodeURIComponent(pantry.id)}">View Full History&nbsp;→</a>` : ''}
         </div>
         <div class="telemetry-grid">
           <div class="telemetry-card">
@@ -489,6 +492,8 @@
         </div>
       </section>
 
+      ${telemetryMarkup}
+
       <section class="detail-section wishlist-section" data-wishlist>
         <div class="section-heading-row">
           <h2>Pantry Wishlist</h2>
@@ -497,46 +502,13 @@
         <div class="wishlist-grid" data-wishlist-grid>
           <div class="wishlist-empty">Loading wishlist…</div>
         </div>
-        <button class="section-link" type="button" data-wishlist-toggle hidden>View All <span aria-hidden="true">⌄</span></button>
-      </section>
-
-      ${telemetryMarkup}
-
-      <section class="detail-section support-section">
-        <h2>Support us</h2>
-        <p>Every contribution makes a difference!</p>
-        <div class="support-grid">
-          <button class="support-card" type="button">Drop off at<br>the pantry</button>
-          <button class="support-card" type="button">
-            Ship to<br><span>${addressText}</span>
-          </button>
-          <button class="support-card" type="button">Amazon Wishlist</button>
-        </div>
-        <button class="safety-link" type="button">🟢 Safety Guideline</button>
       </section>
 
       <section class="detail-section message-section">
         <h2>Leave a message</h2>
-        <button class="message-cta" type="button">Leave a message to the host and the community</button>
-        <div class="message-list">
-          <article class="message-card">
-            <div class="message-avatar">${avatarTag(null, 40, 'Community member')}</div>
-            <div class="message-body">
-              <p>Thank you so much for running the pantry with such dedication! Your hard work makes a huge difference in our community!</p>
-              <div class="message-media">
-                ${contentPhotoTag(null, 60)}
-                ${contentPhotoTag(null, 60)}
-              </div>
-              <time datetime="">1 day ago</time>
-            </div>
-          </article>
-          <article class="message-card">
-            <div class="message-avatar">${avatarTag(null, 40, 'Community member')}</div>
-            <div class="message-body">
-              <p>Appreciate the consistent restocks. The fresh produce has been a lifesaver for our family!</p>
-              <time datetime="">2 days ago</time>
-            </div>
-          </article>
+        <button class="message-cta" type="button" data-message-add>Leave a message to the host and the community</button>
+        <div class="message-list" data-message-list>
+          <div class="message-empty">Loading messages…</div>
         </div>
       </section>
     `;
@@ -674,73 +646,237 @@
   function bindWishlistModule(root, pantry) {
     if (!root || !pantry || !pantry.id) return;
     const grid = root.querySelector('[data-wishlist-grid]');
-    const toggleBtn = root.querySelector('[data-wishlist-toggle]');
     const addBtn = root.querySelector('[data-wishlist-add]');
-    if (!grid || !toggleBtn || !addBtn) return;
+    if (!grid || !addBtn) return;
 
-    const refresh = () => loadWishlist(pantry, grid, toggleBtn);
+    const refresh = (prefetched) => loadWishlist(pantry, grid, prefetched);
     addBtn.onclick = () => openWishlistModal(pantry, refresh);
-    toggleBtn.onclick = () => {
-      const expanded = toggleBtn.dataset.expanded === 'true';
-      const items = grid.__items || [];
-      renderWishlistItems(grid, toggleBtn, items, !expanded);
-    };
     refresh();
   }
 
-  async function loadWishlist(pantry, grid, toggleBtn) {
-    grid.innerHTML = `<div class="wishlist-empty">Loading wishlist…</div>`;
-    toggleBtn.hidden = true;
+  function normalizeItemName(value) {
+    if (value == null) return '';
+    return String(value).trim();
+  }
+
+  function aggregateWishlistItems(rawItems = []) {
+    if (!Array.isArray(rawItems)) return [];
+    const buckets = new Map();
+
+    rawItems.forEach((entry, index) => {
+      if (entry == null) return;
+      const candidate = typeof entry === 'string' ? { itemDisplay: entry, count: 1 } : entry;
+      const display = normalizeItemName(
+        candidate.itemDisplay ??
+          candidate.item ??
+          candidate.name ??
+          candidate.title ??
+          candidate.id
+      );
+      if (!display) return;
+      const key = normalizeItemName(display).toLowerCase();
+      if (!key) return;
+
+      const rawCount = Number(candidate.count ?? candidate.quantity ?? candidate.qty);
+      const count = Number.isFinite(rawCount) && rawCount > 0 ? rawCount : 1;
+      const updatedAt = candidate.updatedAt ?? candidate.modified ?? candidate.createdAt ?? candidate.timestamp ?? null;
+
+      const existing = buckets.get(key);
+      if (existing) {
+        existing.count += count;
+        if (!existing.updatedAt && updatedAt) {
+          existing.updatedAt = updatedAt;
+        }
+      } else {
+        buckets.set(key, {
+          id: candidate.id ?? `agg-${key || index}`,
+          itemDisplay: display,
+          count,
+          updatedAt: updatedAt ?? null,
+        });
+      }
+    });
+
+    return Array.from(buckets.values());
+  }
+
+  function normalizeWishlistItems(rawItems = []) {
+    return aggregateWishlistItems(rawItems);
+  }
+
+  function toWishlistArray(data) {
+    if (Array.isArray(data)) return data;
+    if (data && Array.isArray(data.items)) return data.items;
+    return [];
+  }
+
+  async function loadWishlist(pantry, grid, prefetchedData) {
+    if (!grid) return;
+    if (prefetchedData === undefined) {
+      grid.innerHTML = `<div class="wishlist-empty">Loading wishlist…</div>`;
+    }
     try {
-      const data = await window.PantryAPI.getWishlist(pantry.id);
-      let items = Array.isArray(data)
-        ? data
-        : (Array.isArray(data?.items) ? data.items : []);
+      const data = prefetchedData ?? (await window.PantryAPI.getWishlist(pantry.id));
+      let items = toWishlistArray(data);
       if ((!items || items.length === 0) && Array.isArray(pantry.wishlist) && pantry.wishlist.length) {
         items = pantry.wishlist.map((name, idx) => ({
           id: `legacy-${idx}`,
-          item: name,
-          quantity: 1,
-          createdAt: null
+          itemDisplay: name,
+          count: 1,
+          updatedAt: null
         }));
       }
-      grid.__items = items;
-      renderWishlistItems(grid, toggleBtn, items, false);
+      const normalized = normalizeWishlistItems(items);
+      wishlistState.items = normalized;
+      wishlistState.pantryId = pantry.id;
+      renderWishlistItems(grid, normalized);
     } catch (error) {
       console.error('Error loading wishlist:', error);
       grid.innerHTML = `<div class="wishlist-empty">Unable to load wishlist right now.</div>`;
     }
   }
 
-  function renderWishlistItems(grid, toggleBtn, items, expanded) {
+  function renderWishlistItems(grid, items) {
     grid.innerHTML = '';
     if (!Array.isArray(items) || items.length === 0) {
       grid.innerHTML = `<div class="wishlist-empty">No wishlist items in the last 7 days.</div>`;
-      toggleBtn.hidden = true;
       return;
     }
-    const subset = expanded ? items : items.slice(0, 3);
-    subset.forEach(item => {
-      const qty = Number.isFinite(item.quantity) ? item.quantity : 1;
-      const created = item.createdAt ? formatRelativeTimestamp(item.createdAt) : '';
-      const chip = document.createElement('span');
-      chip.className = 'wishlist-chip';
-      chip.title = created ? `Added ${created}` : '';
-      chip.innerHTML = `
-        <span class="wishlist-chip-label">${item.item || item.name || 'Item'}</span>
-        <span class="wishlist-chip-count">(${qty})</span>
-        <span class="wishlist-chip-delta">+${Math.max(1, qty)}</span>
-      `;
-      grid.appendChild(chip);
+    items.forEach(item => {
+      const qty = Number.isFinite(item.count) && item.count > 0 ? item.count : 1; // Backend aggregates count
+      const timestamp = item.updatedAt || item.createdAt || null; // Prefer freshest timestamp regardless of field name
+      const itemDisplay = normalizeItemName(item.itemDisplay ?? item.id ?? 'Item'); // Use backend agg label
+      const pill = document.createElement('button');
+      pill.type = 'button';
+      pill.className = 'wishlist-chip';
+      pill.title = timestamp ? `Updated ${formatRelativeTimestamp(timestamp)}` : '';
+      pill.textContent = qty > 1 ? `${itemDisplay} × ${qty}` : itemDisplay; // Surface quantity inline when greater than one
+      pill.addEventListener('click', async () => {
+        if (!wishlistState.pantryId) return;
+        const pantryId = String(wishlistState.pantryId);
+        try {
+          const updated = await window.PantryAPI.addWishlist(pantryId, itemDisplay, 1);
+          const refreshed = normalizeWishlistItems(toWishlistArray(updated)); // Merge duplicates after re-fetch
+          wishlistState.items = refreshed;
+          renderWishlistItems(grid, refreshed);
+        } catch (err) {
+          console.error('Error re-adding wishlist item:', err);
+        }
+      });
+      grid.appendChild(pill);
+    });
+  }
+
+  async function loadMessages(pantry) {
+    if (!pantry || !pantry.id || !messageState.root) return;
+    const container = messageState.root;
+    container.innerHTML = `<div class="message-empty">Loading messages…</div>`;
+    try {
+      const pantryId = String(pantry.id);
+      const data = await window.PantryAPI.getMessages(pantryId);
+      const items = Array.isArray(data) ? data : (Array.isArray(data?.items) ? data.items : []);
+      messageState.items = items;
+      messageState.pantryId = pantryId;
+      renderMessages(items);
+    } catch (error) {
+      console.error('Error loading messages:', error);
+      container.innerHTML = `<div class="message-empty">Unable to load messages right now.</div>`;
+    }
+  }
+
+  function renderMessages(items) {
+    const container = messageState.root;
+    if (!container) return;
+    container.innerHTML = '';
+    if (!Array.isArray(items) || items.length === 0) {
+      container.innerHTML = `<div class="message-empty">No messages yet.</div>`;
+      return;
+    }
+
+    items.forEach((msg) => {
+      const userName = (msg && (msg.userName || msg.name)) || 'Community member';
+      const avatarUrl = msg?.userAvatar || msg?.avatarUrl || null;
+      const content = msg?.content || msg?.message || '';
+      const createdAt = msg?.createdAt || msg?.timestamp || msg?.time || '';
+      const photos = Array.isArray(msg?.photos)
+        ? msg.photos
+        : (Array.isArray(msg?.images) ? msg.images : []);
+
+      const card = document.createElement('article');
+      card.className = 'message-card';
+
+      const avatar = document.createElement('div');
+      avatar.className = 'message-avatar';
+      avatar.innerHTML = avatarTag(avatarUrl, 40, userName);
+      card.appendChild(avatar);
+
+      const body = document.createElement('div');
+      body.className = 'message-body';
+
+      const heading = document.createElement('h3');
+      heading.textContent = userName;
+      body.appendChild(heading);
+
+      if (content) {
+        const paragraph = document.createElement('p');
+        paragraph.textContent = content;
+        body.appendChild(paragraph);
+      }
+
+      if (photos && photos.length) {
+        const media = document.createElement('div');
+        media.className = 'message-media';
+        media.innerHTML = photos.slice(0, 3)
+          .map((url) => contentPhotoTag(url, 60, `${userName} upload`))
+          .join('');
+        body.appendChild(media);
+      }
+
+      const timeEl = document.createElement('time');
+      if (createdAt) {
+        timeEl.setAttribute('datetime', createdAt);
+        timeEl.textContent = formatRelativeTimestamp(createdAt);
+      } else {
+        timeEl.textContent = '';
+      }
+      body.appendChild(timeEl);
+
+      card.appendChild(body);
+      container.appendChild(card);
     });
 
-    if (items.length > 3) {
-      toggleBtn.hidden = false;
-      toggleBtn.dataset.expanded = expanded ? 'true' : 'false';
-      toggleBtn.innerHTML = expanded ? 'Collapse ▲' : 'View All <span aria-hidden="true">⌄</span>';
-    } else {
-      toggleBtn.hidden = true;
-    }
+    attachImageFallbacks(container);
+  }
+
+  function bindMessageModule(root, pantry) {
+    if (!root || !pantry || !pantry.id) return;
+    const list = root.querySelector('[data-message-list]');
+    const addBtn = root.querySelector('[data-message-add]');
+    if (!list || !addBtn) return;
+
+    messageState.root = list;
+    messageState.pantryId = String(pantry.id);
+
+    addBtn.onclick = async () => {
+      const userNameInput = window.prompt('Your name (optional):') || 'Community member';
+      const contentInput = window.prompt('Leave your message:');
+      if (!contentInput || !contentInput.trim()) return;
+      try {
+        await window.PantryAPI.postMessage(
+          String(pantry.id),
+          contentInput.trim(),
+          userNameInput.trim(),
+          null,
+          []
+        );
+        await loadMessages(pantry);
+      } catch (error) {
+        console.error('Error posting message:', error);
+        window.alert('Failed to post message. Please try again.');
+      }
+    };
+
+    loadMessages(pantry);
   }
 
   function openWishlistModal(pantry, onSuccess) {
@@ -808,9 +944,9 @@
       submitBtn.textContent = 'Adding…';
 
       try {
-        await window.PantryAPI.addWishlist(pantry.id, item, quantity);
+        const updated = await window.PantryAPI.addWishlist(pantry.id, item, quantity);
+        if (typeof onSuccess === 'function') await onSuccess(updated); // Re-fetch wishlist immediately after add
         close();
-        if (typeof onSuccess === 'function') onSuccess();
       } catch (error) {
         console.error('Error creating wishlist item:', error);
         errorEl.textContent = 'Failed to add item. Please try again.';

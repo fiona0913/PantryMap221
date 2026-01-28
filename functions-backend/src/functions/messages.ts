@@ -3,11 +3,12 @@
 
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
 import { CosmosClient } from "@azure/cosmos";
+import { corsHeaders, handleOptions } from "../lib/cors";
 
-function json(status: number, body: any): HttpResponseInit {
+function json(status: number, body: any, origin?: string | null): HttpResponseInit {
   return {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
     body: JSON.stringify(body),
   };
 }
@@ -37,8 +38,9 @@ function getMessagesContainer() {
 }
 
 async function handleGet(req: HttpRequest, ctx: InvocationContext): Promise<HttpResponseInit> {
+  const origin = req.headers.get("origin");
   const pantryId = req.query.get("pantryId")?.trim();
-  if (!pantryId) return json(400, { error: "Missing pantryId." });
+  if (!pantryId) return json(400, { error: "Missing pantryId." }, origin);
 
   const container = getMessagesContainer();
 
@@ -50,10 +52,11 @@ async function handleGet(req: HttpRequest, ctx: InvocationContext): Promise<Http
   };
 
   const { resources } = await container.items.query(querySpec).fetchAll();
-  return json(200, resources || []);
+  return json(200, resources || [], origin);
 }
 
 async function handlePost(req: HttpRequest, ctx: InvocationContext): Promise<HttpResponseInit> {
+  const origin = req.headers.get("origin");
   const body = (await req.json().catch(() => null)) as any;
 
   const pantryId = body?.pantryId?.toString().trim();
@@ -69,12 +72,12 @@ async function handlePost(req: HttpRequest, ctx: InvocationContext): Promise<Htt
   const photos = Array.isArray(body?.photos) ? body.photos : [];
 
   // Guardrails (anonymous allowed, but prevent spam/abuse)
-  if (!pantryId) return json(400, { error: "pantryId is required." });
-  if (!content) return json(400, { error: "content is required." });
-  if (content.length > 500) return json(400, { error: "content too long (max 500)." });
+  if (!pantryId) return json(400, { error: "pantryId is required." }, origin);
+  if (!content) return json(400, { error: "content is required." }, origin);
+  if (content.length > 500) return json(400, { error: "content too long (max 500)." }, origin);
 
-  if (!userName) return json(400, { error: "userName is required." });
-  if (userName.length > 40) return json(400, { error: "userName too long (max 40)." });
+  if (!userName) return json(400, { error: "userName is required." }, origin);
+  if (userName.length > 40) return json(400, { error: "userName too long (max 40)." }, origin);
 
   const safePhotos = photos
     .filter((p: any) => typeof p === "string" && p.trim().length > 0)
@@ -95,19 +98,23 @@ async function handlePost(req: HttpRequest, ctx: InvocationContext): Promise<Htt
 
   await container.items.create(doc);
 
-  return json(201, { ok: true, message: doc });
+  return json(201, { ok: true, message: doc }, origin);
 }
 
 app.http("messages", {
-  methods: ["GET", "POST"],
+  methods: ["GET", "POST", "OPTIONS"],
   authLevel: "anonymous",
   handler: async (req: HttpRequest, ctx: InvocationContext): Promise<HttpResponseInit> => {
+    if (req.method === "OPTIONS") {
+      return handleOptions(req);
+    }
+    const origin = req.headers.get("origin");
     try {
       if (req.method === "GET") return await handleGet(req, ctx);
       return await handlePost(req, ctx);
     } catch (e: any) {
       ctx.error("messages handler error:", e?.message || e);
-      return json(500, { error: "Messages function error.", detail: e?.message || String(e) });
+      return json(500, { error: "Messages function error.", detail: e?.message || String(e) }, origin);
     }
   },
 });

@@ -21,7 +21,7 @@ cp .env.example .env
 
 ### 3. 迁移数据
 
-将现有的 `pantries.json` 数据导入数据库：
+将 `frontend/pantries.json` 数据导入数据库：
 
 ```bash
 npm run migrate

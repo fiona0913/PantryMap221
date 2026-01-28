@@ -5,8 +5,8 @@ const { pool, runQuery, getQuery } = require('../database/db-pg');
 async function migratePantries() {
   console.log('🔄 Starting PostgreSQL data migration...');
 
-  // Read pantries.json
-  const pantriesPath = path.join(__dirname, '../../pantries.json');
+  // Read pantries.json from frontend bundle
+  const pantriesPath = path.join(__dirname, '../../frontend/pantries.json');
   const pantriesData = JSON.parse(fs.readFileSync(pantriesPath, 'utf8'));
 
   console.log(`📦 Found ${pantriesData.length} pantries to migrate`);

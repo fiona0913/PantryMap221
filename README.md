@@ -6,19 +6,20 @@ Overview
 - Built with Leaflet; ready to swap in real APIs and sensor data later
 
 Quick Start
-1. Use a simple static server (needed due to Leaflet asset loading and fetch):
+1. Enter the frontend bundle: `cd frontend`
+2. Use a simple static server (needed due to Leaflet asset loading and fetch):
    - Python 3: `python3 -m http.server 3000`
-   - Node: `npx serve -l 3000`
-2. Open `http://localhost:3000` in your browser.
-3. Click on any green marker to view pantry details with photos and information.
+   - Node: `npx serve -l 3000 .`
+3. Open `http://localhost:3000` in your browser.
+4. Click on any green marker to view pantry details with photos and information.
 
 Files
-- `index.html`: Root HTML with map container and side panel
-- `styles.css`: Basic layout and responsive styles
-- `app.js`: App bootstrap, map init, marker handling, panel updates
-- `api.js`: Simple API layer with `getPantries()` (reads `pantries.json`)
-- `pantries.json`: Real pantry data converted from `micropantries_all.csv`
-- `micropantries_all.csv`: Source CSV with 335+ pantry locations
+- `frontend/index.html`: Root HTML with map container and side panel
+- `frontend/styles.css`: Basic layout and responsive styles
+- `frontend/app.js`: App bootstrap, map init, marker handling, panel updates
+- `frontend/api.js`: Simple API layer with `getPantries()` (reads `frontend/pantries.json`)
+- `frontend/pantries.json`: Real pantry data converted from `frontend/micropantries_all.csv`
+- `frontend/micropantries_all.csv`: Source CSV with 335+ pantry locations
 
 Data Contract (initial)
 - Pantry object (example):
