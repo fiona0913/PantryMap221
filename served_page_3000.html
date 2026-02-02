@@ -1,0 +1,257 @@
+﻿<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>My Pantry â Sensor History</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-p1CmX0fQJbq2Y7+gkq0q3ZKXf5Yx1Q9m3K1q9c5ZrYq6s5x1Z4QdK1bQ6eY1v6Q9s5x1Z4QdK1bQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="./my-pantry.css" />
+    <style>
+      /* Force-scroll emergency overrides */
+      html, body {
+        overflow-y: scroll !important;
+        overflow-x: hidden !important;
+        height: auto !important;
+        min-height: 100vh !important;
+        max-height: none !important;
+      }
+      * { max-height: none !important; }
+      body > *, main, .container, [class*="page"], [class*="content"] {
+        overflow: visible !important;
+        height: auto !important;
+        max-height: none !important;
+      }
+    </style>
+  </head>
+  <body class="history-page">
+    <div id="app">
+      <header class="app-header">
+        <a href="./index.html" class="brand">
+          <span class="logo">ð¿</span>
+          <span class="title">Pantry Map</span>
+        </a>
+        <nav class="top-nav">
+          <a href="./index.html" class="nav-link">Pantry Map</a>
+          <a href="./my-pantry.html" class="nav-link active">My Pantry</a>
+          <a href="#" class="nav-link">Food Safety Education</a>
+          <a href="./about.html" class="nav-link">About Us</a>
+        </nav>
+        <div class="controls">
+          <a href="#" class="header-cta">Join Us / Log In</a>
+        </div>
+      </header>
+
+      <main class="layout" style="align-items: flex-start;">
+        <div style="flex:1; padding: 28px; max-width: 1200px; margin: 0 auto;">
+          <header class="mp-header history-header">
+            <a href="index.html" class="back-link mp-back"><i class="fa-solid fa-arrow-left"></i> Back to Map</a>
+            <div class="history-title mp-title-wrap">
+              <h1 id="pantryTitle" class="mp-title">My Pantry</h1>
+              <p id="pantrySubtitle" class="mp-subtitle">Overview and management tools for your pantry.</p>
+            </div>
+            <div id="pantryStatus" class="mp-status-badge">Status</div>
+          </header>
+
+          <nav class="tabs mp-tabs" role="tablist" aria-label="My Pantry Tabs">
+            <button class="tab active" data-tab="overview"><span class="tab-ico">ð</span> <span class="tab-label">Overview</span></button>
+            <button class="tab" data-tab="sensors"><span class="tab-ico">ð¡</span> <span class="tab-label">Sensors</span></button>
+            <button class="tab" data-tab="wishlist"><span class="tab-ico">ð</span> <span class="tab-label">Wishlist</span></button>
+            <button class="tab" data-tab="activity"><span class="tab-ico">ð</span> <span class="tab-label">Activity</span></button>
+            <button class="tab" data-tab="settings"><span class="tab-ico">âï¸</span> <span class="tab-label">Settings</span></button>
+          </nav>
+
+          <div class="tab-panels">
+            <section id="tab-overview" class="tab-panel active">
+              <div class="grid-3">
+                <div class="card">
+                  <h3>Basic Info</h3>
+                  <div id="basicInfo"></div>
+                </div>
+                <div class="card">
+                  <h3>Status</h3>
+                  <div id="statusCards"></div>
+                </div>
+                <div class="card">
+                  <h3>Inventory Categories</h3>
+                  <div id="inventoryCategories"></div>
+                </div>
+              </div>
+              
+              <!-- Map preview card (small interactive map) -->
+              <div class="map-preview-card card" style="margin-top:18px;">
+                <h3>ð Location</h3>
+                <div id="pantry-mini-map" style="height:280px; border-radius:8px; overflow:hidden;"></div>
+              </div>
+            </section>
+
+            <section id="tab-sensors" class="tab-panel">
+              <div class="history-main">
+                <!-- Top: Recent Activity Summary (full width) -->
+                <div class="activity-summary-section">
+                  <h3 class="section-title">ð Recent Activity Summary</h3>
+                  <div id="activitySummaryList" class="activity-cards-container">
+                    <div class="history-placeholder">Loading summaryâ¦</div>
+                  </div>
+                  <div id="csvDebugPanel" style="margin-top:12px;font-size:13px;color:#444;display:none;" aria-hidden="true"></div>
+                  <div style="margin-top:12px;text-align:right;"><button id="activityShowMore" class="modal-btn">Show more</button></div>
+                </div>
+
+                <!-- Middle: two-column layout for Weight Trend and Door Events -->
+                <div class="sensors-content-grid">
+                  <div class="chart-column">
+                    <div class="history-card">
+                      <div class="history-card-header">
+                        <h2>Weight Trend</h2>
+                        <span data-weight-range class="history-meta"></span>
+                      </div>
+                      <div class="chart-wrapper">
+                        <svg data-weight-chart viewBox="0 0 720 320" role="img" aria-label="Weight sensor readings over time"></svg>
+                      </div>
+                      <div data-weight-legend class="history-meta"></div>
+                    </div>
+                  </div>
+
+                  <div class="events-column">
+                    <div class="history-card">
+                      <div class="history-card-header">
+                        <h2>Door Events</h2>
+                        <span data-door-summary class="history-meta"></span>
+                      </div>
+                      <div data-door-timeline class="door-timeline compact"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section id="tab-wishlist" class="tab-panel">
+              <div class="card">
+                <h3>Pantry Wishlist</h3>
+                <div id="mp-wishlist"></div>
+                <div style="margin-top:12px;"><button id="mp-wishlist-add" class="modal-btn gradient">Add Item</button></div>
+              </div>
+            </section>
+
+            <section id="tab-activity" class="tab-panel">
+              <div class="card">
+                <h3>Activity Log</h3>
+                <div id="activityLog">(No activity yet)</div>
+              </div>
+            </section>
+
+            <section id="tab-settings" class="tab-panel">
+              <div class="grid-3" style="grid-template-columns: 1fr;">
+                <div class="card" id="settings-basic">
+                  <h3>Basic Settings</h3>
+                  <div class="kv-2col">
+                    <div>
+                      <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <div><strong id="settings-name-display">Pantry Name</strong><div class="small muted" id="settings-name-sub">Current name</div></div>
+                        <div><button id="btn-edit-name" class="modal-btn">Edit Name</button></div>
+                      </div>
+                      <div style="margin-top:12px;">
+                        <label style="font-weight:700;display:block;margin-bottom:6px;">Description</label>
+                        <textarea id="settings-description" class="form" style="min-height:80px;padding:10px;border-radius:8px;border:1px solid var(--border);width:100%;"> </textarea>
+                        <div style="display:flex;justify-content:flex-end;margin-top:8px;"><button id="btn-save-desc" class="modal-btn primary">Save</button></div>
+                      </div>
+                    </div>
+                    <div>
+                      <label style="font-weight:700;display:block;margin-bottom:6px;">Contact</label>
+                      <input id="settings-contact-name" placeholder="Contact name" style="margin-bottom:8px;padding:10px;border-radius:8px;border:1px solid var(--border);width:100%;" />
+                      <input id="settings-contact-phone" placeholder="Phone" style="margin-bottom:8px;padding:10px;border-radius:8px;border:1px solid var(--border);width:100%;" />
+                      <input id="settings-contact-email" placeholder="Email" style="padding:10px;border-radius:8px;border:1px solid var(--border);width:100%;" />
+                      <div style="display:flex;justify-content:flex-end;margin-top:8px;"><button id="btn-save-contact" class="modal-btn">Save Contact</button></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="card" id="settings-notifications">
+                  <h3>Notification Settings</h3>
+                  <div style="display:flex;flex-direction:column;gap:12px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;">
+                      <div>
+                        <strong>Low inventory alerts</strong>
+                        <div class="small muted">Receive alerts when stock is low</div>
+                      </div>
+                      <label class="switch"><input id="toggle-low-inv" type="checkbox"><span class="slider"></span></label>
+                    </div>
+
+                    <div style="display:flex;align-items:center;justify-content:space-between;">
+                      <div>
+                        <strong>Maintenance reminders</strong>
+                        <div class="small muted">Regular reminders for cleanup/maintenance</div>
+                      </div>
+                      <label class="switch"><input id="toggle-maint-rem" type="checkbox"><span class="slider"></span></label>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="card" id="settings-danger">
+                  <h3 style="color:var(--danger);">Danger Zone</h3>
+                  <div style="display:flex;flex-direction:column;gap:12px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;">
+                      <div>
+                        <strong style="color:var(--warn);">Deactivate Pantry</strong>
+                        <div class="small muted">Temporarily hide this pantry from public listings</div>
+                      </div>
+                      <button id="btn-deactivate" class="modal-btn">Deactivate</button>
+                    </div>
+
+                    <div style="border-top:1px dashed rgba(0,0,0,0.06);padding-top:12px;">
+                      <strong style="color:var(--danger);">Delete Pantry</strong>
+                      <div class="small muted">Permanently delete this pantry and its local data. This action is irreversible.</div>
+                      <div style="display:flex;gap:8px;margin-top:12px;">
+                        <button id="btn-delete" class="modal-btn" style="background:var(--danger);color:#fff;border-color:transparent;">Delete</button>
+                        <button id="btn-delete-draft" class="modal-btn">Draft</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Edit name modal -->
+              <div id="modal-edit-name" class="modal-overlay" aria-hidden="true">
+                <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-edit-name-title">
+                  <div class="modal-header"><h3 id="modal-edit-name-title" class="modal-title">Edit Pantry Name</h3><button class="modal-close" data-close-modal>&times;</button></div>
+                  <div>
+                    <label style="font-weight:700;display:block;margin-bottom:8px;">Name</label>
+                    <input id="modal-edit-name-input" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;" />
+                  </div>
+                  <div class="modal-actions">
+                    <button class="modal-btn wishlist-modal-cancel" data-close-modal>Cancel</button>
+                    <button id="modal-edit-name-save" class="modal-btn primary">Save</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Delete confirm modal -->
+              <div id="modal-delete-confirm" class="modal-overlay" aria-hidden="true">
+                <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-delete-title">
+                  <div class="modal-header"><h3 id="modal-delete-title" class="modal-title" style="color:var(--danger);">Confirm Delete</h3><button class="modal-close" data-close-modal>&times;</button></div>
+                  <div>
+                    <p>Type <strong>DELETE</strong> (uppercase) to confirm permanent deletion of this pantry and its local data.</p>
+                    <input id="modal-delete-input" placeholder="Type DELETE to confirm" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;margin-top:8px;" />
+                  </div>
+                  <div class="modal-actions">
+                    <button class="modal-btn wishlist-modal-cancel" data-close-modal>Cancel</button>
+                    <button id="modal-delete-confirm-btn" class="modal-btn" style="background:var(--danger);color:#fff;border-color:transparent;" disabled>Delete</button>
+                  </div>
+                </div>
+              </div>
+
+              <div id="mp-toast" aria-live="polite" style="position:fixed;right:18px;bottom:18px;z-index:6000;pointer-events:none;"></div>
+            </section>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="./api.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="./my-pantry.js"></script>
+  </body>
+</html>
+

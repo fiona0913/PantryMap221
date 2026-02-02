@@ -47,28 +47,6 @@
     return `<img data-role='content-photo' src='${src}' alt='${safeAlt}' style='${style}'>`;
   }
 
-  function renderStockGauge(currentItems = 0, capacity = 40) {
-    const safeCurrent = Number.isFinite(currentItems) ? currentItems : 0;
-    const ratio = Math.max(0, Math.min(safeCurrent / capacity, 1));
-    const statusLabel = ratio >= 0.75 ? 'Full' : (ratio >= 0.4 ? 'Medium' : 'Low');
-    const radius = 80;
-    const circumference = Math.PI * radius;
-    const dashOffset = circumference * (1 - ratio);
-    return `
-      <div class="detail-gauge">
-        <svg viewBox="0 0 200 120" class="detail-gauge-svg" role="img" aria-label="Stock level">
-          <path class="detail-gauge-track" d="M20 100 A80 80 0 0 1 180 100" />
-          <path class="detail-gauge-fill" d="M20 100 A80 80 0 0 1 180 100"
-            stroke-dasharray="${circumference}"
-            stroke-dashoffset="${dashOffset}" />
-        </svg>
-        <div class="detail-gauge-center">
-          <div class="detail-gauge-status">${statusLabel}</div>
-          <div class="detail-gauge-count">${safeCurrent} Items</div>
-        </div>
-      </div>
-    `;
-  }
 
   function formatDateTimeMinutes(isoString) {
     const d = new Date(isoString);
@@ -101,7 +79,7 @@
   }
 
   function formatRelativeTimestamp(isoString) {
-    if (!isoString) return 'No recent uploads';
+    if (!isoString) return '';
     const date = new Date(isoString);
     if (Number.isNaN(date.getTime())) return formatDateTimeMinutes(isoString);
     const diffMs = Date.now() - date.getTime();
@@ -124,6 +102,77 @@
       ensure();
       img.addEventListener('error', () => { img.setAttribute('src', fallback); });
     });
+  }
+
+  // Fetch CSV for a pantry (if `pantry.csvFile` exists), parse last row, and update telemetry DOM
+  async function fetchAndUpdateTelemetry(pantry) {
+    if (!pantry || !pantry.csvFile) return;
+    try {
+      const res = await fetch(pantry.csvFile);
+      if (!res.ok) throw new Error('Failed to fetch CSV: ' + res.status);
+      const txt = await res.text();
+      const lines = txt.split(/\r?\n/).filter(l => l && l.trim());
+      if (lines.length < 2) return; // no data rows
+      const header = lines[0].split(',').map(h => h.trim().toLowerCase());
+      // find last non-empty data line (ignore trailing newline)
+      let lastLine = lines[lines.length - 1];
+      // If last line looks like header or empty, walk backwards
+      for (let i = lines.length - 1; i >= 1; i--) {
+        if (lines[i] && lines[i].trim()) { lastLine = lines[i]; break; }
+      }
+      const values = lastLine.split(',');
+      const row = {};
+      header.forEach((h, idx) => { row[h] = (values[idx] !== undefined) ? values[idx].trim() : ''; });
+
+      // Compute current weight as sum of scale columns if present
+      const scaleKeys = ['scale1','scale2','scale3','scale4'];
+      let weight = 0;
+      let foundScale = false;
+      scaleKeys.forEach(k => {
+        if (row[k] !== undefined) {
+          const n = Number(row[k]) || 0;
+          weight += n;
+          foundScale = true;
+        }
+      });
+
+      // Fallback: try columns named "currentweight" or "current_weight"
+      if (!foundScale && (row['currentweight'] || row['current_weight'])) {
+        const val = row['currentweight'] || row['current_weight'];
+        weight = Number(val.toString().replace(/[^0-9.\-]/g, '')) || 0;
+      }
+
+      const ts = row['timestamp'] || row['time'] || row['ts'] || '';
+      const door1 = (String(row['door1_open'] || row['door_open'] || row['door']) || '').toLowerCase();
+      const door2 = (String(row['door2_open'] || '')).toLowerCase();
+      const doorOpen = door1 === 'true' || door1 === '1' || door2 === 'true' || door2 === '1';
+      const statusText = doorOpen ? 'Opened' : 'Closed';
+
+      const detailsContent = document.getElementById('detailsContent');
+      if (!detailsContent) return;
+
+      function setTelemetryLabel(label, value, usePill = false) {
+        const cards = detailsContent.querySelectorAll('.telemetry-card');
+        for (const c of cards) {
+          const lbl = c.querySelector('.telemetry-label');
+          if (lbl && lbl.textContent.trim() === label) {
+            if (usePill) {
+              const pill = c.querySelector('.telemetry-pill'); if (pill) pill.textContent = value;
+            } else {
+              const valEl = c.querySelector('.telemetry-value'); if (valEl) valEl.textContent = value;
+            }
+            break;
+          }
+        }
+      }
+
+      setTelemetryLabel('Weight', formatWeightDisplay(weight));
+      setTelemetryLabel('Last activity', statusText);
+      setTelemetryLabel('Updated', ts ? formatDateTimeMinutes(ts) : '--');
+
+    } catch (err) {
+      console.warn('fetchAndUpdateTelemetry error', err);
+    }
   }
 
   // Initialize the application
@@ -214,9 +263,11 @@
 
     const detailsPanel = document.getElementById('details');
     const detailsContent = document.getElementById('detailsContent');
-    detailsPanel.classList.remove('hidden');
-    detailsContent.innerHTML = renderPantryList(inView);
-    attachImageFallbacks(detailsContent);
+    if (detailsPanel) detailsPanel.classList.remove('hidden');
+    if (detailsContent) {
+      detailsContent.innerHTML = renderPantryList(inView);
+      attachImageFallbacks(detailsContent);
+    }
     updateBackButton();
   }
 
@@ -381,6 +432,7 @@
     // Initialize carousel if present
     setupCarousel(detailsContent);
     bindWishlistModule(detailsContent, pantry);
+    bindMessageModule(detailsContent, pantry);
     
     // Show details panel
     const detailsPanel = document.getElementById('details');
@@ -423,12 +475,11 @@
       ? `${contactName} (<a href="mailto:${contactEmail}">${contactEmail}</a>)`
       : contactName;
     const sensors = pantry.sensors || {};
-    const telemetryMarkup = `
-      <section class="detail-section telemetry-section">
-        <div class="section-heading-row">
-          <h2>Sensor data</h2>
-          ${pantry.id ? `<button class="section-link" type="button" data-telemetry-expand data-pantry-id="${encodeURIComponent(pantry.id)}">View Full History&nbsp;→</button>` : ''}
-        </div>
+      const telemetryMarkup = `
+        <section class="detail-section telemetry-section">
+          <div class="section-heading-row">
+            <h2>Sensor data</h2>
+          </div>
         <div class="telemetry-grid">
           <div class="telemetry-card">
             <span class="telemetry-label">Weight</span>
@@ -458,7 +509,7 @@
         </div>
         <div class="detail-hero-body">
           <h1 class="detail-title">${pantry.name || 'Untitled Pantry'}</h1>
-          <div class="detail-subline">${distanceText} · ${addressText}</div>
+          <div class="detail-subline">${distanceText} · <a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addressText)}" target="_blank" rel="noopener noreferrer">${addressText}</a></div>
           <p class="detail-description">${description}</p>
           <div class="detail-contact">
             <span class="detail-contact-icon">👤</span>
@@ -467,13 +518,21 @@
         </div>
       </div>
 
-      <section class="detail-section stock-section">
-        <div class="stock-card">
-          <div class="stock-card-head">
-            <h2>Stock level</h2>
-          </div>
-          ${renderStockGauge(totalItems)}
+      ${telemetryMarkup}
+
+      <section class="detail-section telemetry-history-section" data-telemetry-history hidden></section>
+
+      <section class="detail-section support-section">
+        <h2>Support us</h2>
+        <p>Every contribution makes a difference!</p>
+        <div class="support-grid">
+          <button class="support-card" type="button">Drop off at<br>the pantry</button>
+          <button class="support-card" type="button">
+            Ship to<br><a class="support-address" href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addressText)}" target="_blank" rel="noopener noreferrer">${addressText}</a>
+          </button>
+          <button class="support-card" type="button">Safety Guideline</button>
         </div>
+        <button class="safety-link" type="button">🟢 Safety Guideline</button>
       </section>
 
       <section class="detail-section wishlist-section" data-wishlist>
@@ -487,48 +546,76 @@
         <button class="section-link" type="button" data-wishlist-toggle hidden>View All <span aria-hidden="true">⌄</span></button>
       </section>
 
-      ${telemetryMarkup}
+      <section class="detail-section leave-message-section">
+        <header class="leave-message-header">
+          <div class="leave-message-title">💬 Leave a Message</div>
+          <div class="leave-message-description">Share your thoughts with the pantry host</div>
+        </header>
 
-      <section class="detail-section telemetry-history-section" data-telemetry-history hidden></section>
+        <div class="leave-message-card">
+          <button class="message-cta" type="button">Write a message →</button>
 
-      <section class="detail-section support-section">
-        <h2>Support us</h2>
-        <p>Every contribution makes a difference!</p>
-        <div class="support-grid">
-          <button class="support-card" type="button">Drop off at<br>the pantry</button>
-          <button class="support-card" type="button">
-            Ship to<br><span>${addressText}</span>
-          </button>
-          <button class="support-card" type="button">Amazon Wishlist</button>
-        </div>
-        <button class="safety-link" type="button">🟢 Safety Guideline</button>
-      </section>
-
-      <section class="detail-section message-section">
-        <h2>Leave a message</h2>
-        <button class="message-cta" type="button">Leave a message to the host and the community</button>
-        <div class="message-list">
-          <article class="message-card">
-            <div class="message-avatar">${avatarTag(null, 40, 'Community member')}</div>
-            <div class="message-body">
-              <p>Thank you so much for running the pantry with such dedication! Your hard work makes a huge difference in our community!</p>
-              <div class="message-media">
-                ${contentPhotoTag(null, 60)}
-                ${contentPhotoTag(null, 60)}
+          <ul class="message-list" aria-live="polite">
+            <li class="message-card">
+              <div class="message-avatar">${avatarTag(null, 40, 'Community member')}</div>
+              <div class="message-body">
+                <p>Thank you so much for running the pantry with such dedication! Your hard work makes a huge difference in our community!</p>
+                <div class="message-media">
+                  ${contentPhotoTag(null, 60)}
+                  ${contentPhotoTag(null, 60)}
+                </div>
+                <time datetime="">1 day ago</time>
               </div>
-              <time datetime="">1 day ago</time>
+            </li>
+            <li class="message-card">
+              <div class="message-avatar">${avatarTag(null, 40, 'Community member')}</div>
+              <div class="message-body">
+                <p>Appreciate the consistent restocks. The fresh produce has been a lifesaver for our family!</p>
+                <time datetime="">2 days ago</time>
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Message form modal (hidden until triggered) -->
+        <div class="modal-overlay message-form-overlay" data-message-form-overlay hidden>
+          <div class="modal-card message-form-card" role="dialog" aria-modal="true" aria-label="Leave a message">
+            <div class="modal-header">
+              <h3 class="modal-title">💬 Leave a Message</h3>
+              <button class="modal-close" type="button" aria-label="Close message form" data-message-close>✕</button>
             </div>
-          </article>
-          <article class="message-card">
-            <div class="message-avatar">${avatarTag(null, 40, 'Community member')}</div>
-            <div class="message-body">
-              <p>Appreciate the consistent restocks. The fresh produce has been a lifesaver for our family!</p>
-              <time datetime="">2 days ago</time>
+            <form class="message-form" data-message-form>
+              <div class="form-row">
+                <label for="messageText">Message</label>
+                <textarea id="messageText" data-message-text rows="5" class="message-textarea" placeholder="Share your experience with this pantry..." aria-label="Message text"></textarea>
+              </div>
+              <div class="message-meta">
+                <div class="message-hint">Be kind and constructive.</div>
+                <div class="message-count" data-message-count>0/500</div>
+              </div>
+              <div class="message-buttons">
+                <button type="button" class="btn-cancel" data-message-cancel>Cancel</button>
+                <button type="submit" class="btn-send" data-message-submit>Send ✓</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Success dialog -->
+        <div class="modal-overlay success-overlay" data-success-overlay hidden>
+          <div class="modal-card success-card" role="alertdialog" aria-modal="true">
+            <div class="success-icon">✓</div>
+            <h3>留言已成功提交！</h3>
+            <div class="success-preview" data-success-preview></div>
+            <div class="modal-actions">
+              <button type="button" class="modal-btn primary" data-success-close>确定</button>
             </div>
-          </article>
+          </div>
         </div>
       </section>
     `;
+      // If pantry has a linked CSV file, fetch and update telemetry values
+      try { fetchAndUpdateTelemetry(pantry); } catch (e) { console.warn('Telemetry CSV update failed', e); }
   }
 
   // Set up event listeners
@@ -541,9 +628,21 @@
       if (currentPantry) {
         currentPantry = null;
         showListForCurrentView();
+        // Fit map to show all pantry markers when returning to the list
+        try {
+          if (map && markers && markers.size > 0) {
+            const latlngs = Array.from(markers.values()).map(m => m.getLatLng()).filter(Boolean);
+            if (latlngs.length > 0) {
+              const bounds = L.latLngBounds(latlngs);
+              map.fitBounds(bounds.pad ? bounds.pad(0.05) : bounds, { padding: [40, 40] });
+            }
+          }
+        } catch (err) {
+          console.warn('Could not fit map to markers:', err);
+        }
       } else {
-        // If already on the list view, keep sidebar visible (fixed display)
-        // Sidebar should always be visible, so do nothing
+        // If already on the list view, hide the sidebar entirely
+        detailsPanel.classList.add('hidden');
       }
       detailsPanel.classList.remove('collapsed');
       updateBackButton();
@@ -554,6 +653,51 @@
     if (statusFilter) {
       statusFilter.addEventListener('change', (e) => {
         filterPantriesByStatus(e.target.value);
+      });
+    }
+
+    // Support legacy/alternate collapse button selector (from other templates)
+    const backButton = document.querySelector('.collapse-button');
+    if (backButton) {
+      backButton.addEventListener('click', function(e) {
+        e.preventDefault();
+        const detailsPanel = document.getElementById('details');
+        const sidebar = document.querySelector('.details') || document.querySelector('.sidebar');
+        if (detailsPanel) {
+          detailsPanel.classList.add('hidden');
+        }
+        if (sidebar) {
+          sidebar.classList.remove('expanded');
+        }
+        const sidebarContent = document.querySelector('#detailsContent');
+        if (sidebarContent) {
+          // clear then render the full list
+          sidebarContent.innerHTML = '';
+          sidebarContent.innerHTML = renderPantryList(allPantries);
+          attachImageFallbacks(sidebarContent);
+        }
+        // update visible title if present
+        const sidebarTitle = document.querySelector('#detailsContent h2') || document.querySelector('.sidebar-title');
+        if (sidebarTitle) {
+          const count = allPantries ? allPantries.length : 0;
+          sidebarTitle.textContent = 'Pantries in view (' + count + ')';
+        }
+        // maintain compatibility with templates using this variable name
+        try { window.currentSelectedPantry = null; } catch (e) {}
+        currentPantry = null;
+        updateBackButton();
+        // also fit the map to show all markers
+        try {
+          if (map && markers && markers.size > 0) {
+            const latlngs = Array.from(markers.values()).map(m => m.getLatLng()).filter(Boolean);
+            if (latlngs.length > 0) {
+              const bounds = L.latLngBounds(latlngs);
+              map.fitBounds(bounds.pad ? bounds.pad(0.05) : bounds, { padding: [40, 40] });
+            }
+          }
+        } catch (err) {
+          console.warn('Could not fit map to markers on collapse-button:', err);
+        }
       });
     }
 
@@ -671,11 +815,27 @@
     try {
       const items = await window.PantryAPI.getTelemetryHistory(pantryId);
       const parsed = parseTelemetryHistory(items);
-      renderWeightChartInto(container, parsed.weight);
-      renderDoorTimelineInto(container, parsed.doors);
+      // compute cycles from the raw items for open->close processing
+      const cycles = processDoorEvents(items);
+      const hasWeight = Array.isArray(parsed.weight) && parsed.weight.length > 0;
+      const hasDoors = Array.isArray(parsed.doors) && parsed.doors.length > 0;
+      let toRender = parsed;
+      if (!hasWeight || !hasDoors) {
+        const sample = generateSampleTelemetry(pantryId);
+        toRender = {
+          weight: hasWeight ? parsed.weight : sample.weight,
+          doors: hasDoors ? parsed.doors : sample.doors
+        };
+      }
+      renderWeightChartInto(container, toRender.weight, cycles);
+      renderDoorTimelineInto(container, toRender.doors, cycles);
     } catch (e) {
       console.error('Error loading telemetry history:', e);
-      container.innerHTML = `<div class="history-placeholder">Failed to load telemetry history.</div>`;
+      // fallback: show sample telemetry to avoid empty UI
+      const sample = generateSampleTelemetry(pantryId);
+      const sampleCycles = processDoorEvents(sample.weight.map(w => ({ ts: w.ts, mass: w.weightKg })));
+      renderWeightChartInto(container, sample.weight, sampleCycles);
+      renderDoorTimelineInto(container, sample.doors, sampleCycles);
     }
   }
 
@@ -685,17 +845,128 @@
     const doors = [];
     items.forEach((item) => {
       const ts = item.ts;
-      const weightKg = Number(item.metrics?.weightKg ?? item.metrics?.weightkg ?? NaN);
+      // mass may be provided as `mass` (lbs) or in metrics.weightKg
+      let weightKg = NaN;
+      if (item.mass !== undefined && item.mass !== null) {
+        const massNum = Number(item.mass);
+        if (!Number.isNaN(massNum)) weightKg = massNum * 0.453592;
+      }
+      const metricsWeight = Number(item.metrics?.weightKg ?? item.metrics?.weightkg ?? NaN);
+      if (Number.isNaN(weightKg) && !Number.isNaN(metricsWeight)) weightKg = metricsWeight;
       if (!Number.isNaN(weightKg)) weight.push({ ts, weightKg });
-      const door = item.flags?.door;
-      if (door) doors.push({ ts, status: door });
+
+      // door may be top-level `door` (0/1) or flags.door
+      const doorRaw = (item.door !== undefined && item.door !== null) ? item.door : item.flags?.door;
+      let doorState = null;
+      if (doorRaw === 1 || doorRaw === '1' || doorRaw === 'open' || doorRaw === 'opened') doorState = 'open';
+      if (doorRaw === 0 || doorRaw === '0' || doorRaw === 'closed' || doorRaw === 'close') doorState = 'closed';
+      if (doorState) doors.push({ ts, status: doorState });
     });
     weight.sort((a, b) => new Date(a.ts) - new Date(b.ts));
     doors.sort((a, b) => new Date(a.ts) - new Date(b.ts));
     return { weight, doors };
   }
 
-  function renderWeightChartInto(container, data) {
+  // Process raw history to detect open->close cycles and compute weight changes
+  function processDoorEvents(items) {
+    if (!Array.isArray(items) || items.length === 0) return [];
+    // Build a timeline with ts, massKg, doorState
+    const timeline = items.map(item => {
+      const ts = item.ts;
+      let massKg = NaN;
+      if (item.mass !== undefined && item.mass !== null) {
+        const n = Number(item.mass);
+        if (!Number.isNaN(n)) massKg = n * 0.453592;
+      }
+      const metricsWeight = Number(item.metrics?.weightKg ?? item.metrics?.weightkg ?? NaN);
+      if (Number.isNaN(massKg) && !Number.isNaN(metricsWeight)) massKg = metricsWeight;
+      const doorRaw = (item.door !== undefined && item.door !== null) ? item.door : item.flags?.door;
+      let doorState = null;
+      if (doorRaw === 1 || doorRaw === '1' || doorRaw === 'open' || doorRaw === 'opened') doorState = 'open';
+      if (doorRaw === 0 || doorRaw === '0' || doorRaw === 'closed' || doorRaw === 'close') doorState = 'closed';
+      return { ts, massKg: Number.isFinite(massKg) ? massKg : null, doorState };
+    }).sort((a,b)=>new Date(a.ts)-new Date(b.ts));
+
+    const cycles = [];
+    let waitingOpen = null;
+    for (let i = 0; i < timeline.length; i++) {
+      const ev = timeline[i];
+      if (!ev.doorState) continue;
+      if (ev.doorState === 'open') {
+        if (!waitingOpen) waitingOpen = { openTs: ev.ts, openMass: ev.massKg };
+        else if (ev.massKg !== null) waitingOpen.openMass = ev.massKg;
+      }
+      if (ev.doorState === 'closed') {
+        if (waitingOpen) {
+          const cycle = {
+            openTs: waitingOpen.openTs,
+            openMass: waitingOpen.openMass,
+            closeTs: ev.ts,
+            closeMass: ev.massKg,
+          };
+          // backfill openMass
+          if (cycle.openMass === null) {
+            for (let j = Math.max(0, i-1); j >= 0; j--) {
+              if (timeline[j].massKg !== null) { cycle.openMass = timeline[j].massKg; break; }
+            }
+          }
+          // forward-fill closeMass
+          if (cycle.closeMass === null) {
+            for (let j = i+1; j < timeline.length; j++) {
+              if (timeline[j].massKg !== null) { cycle.closeMass = timeline[j].massKg; break; }
+            }
+          }
+          if (Number.isFinite(cycle.openMass) && Number.isFinite(cycle.closeMass)) cycle.delta = Number((cycle.closeMass - cycle.openMass).toFixed(3));
+          else cycle.delta = null;
+          const openTsNum = Date.parse(cycle.openTs);
+          const closeTsNum = Date.parse(cycle.closeTs);
+          cycle.durationMin = Number.isFinite(openTsNum) && Number.isFinite(closeTsNum) ? Math.round((closeTsNum - openTsNum)/60000) : null;
+          cycles.push(cycle);
+          waitingOpen = null;
+        }
+      }
+    }
+    return cycles;
+  }
+
+  function formatKgDelta(delta) {
+    if (delta === null || delta === undefined || Number.isNaN(Number(delta))) return '—';
+    const sign = delta > 0 ? '+' : '';
+    return `${sign}${delta.toFixed(2)} kg`;
+  }
+
+  // Generate sample telemetry data (weight points & door events)
+  function generateSampleTelemetry(pantryId) {
+    const now = Date.now();
+    const weight = [];
+    // start base between 50 and 90
+    let base = 50 + Math.floor(Math.random() * 40);
+    // create hourly samples for last 24 hours
+    for (let i = 24; i >= 0; i--) {
+      const ts = new Date(now - i * 60 * 60 * 1000).toISOString();
+      // occasional restock bumps
+      if (Math.random() < 0.08) base += 5 + Math.random() * 8;
+      else base += (Math.random() * -1.2);
+      weight.push({ ts, weightKg: Number(Math.max(3, base).toFixed(2)) });
+    }
+
+    const doors = [];
+    // generate door open/close events over last 48 hours every ~3-6 hours
+    for (let hoursAgo = 48; hoursAgo >= 0; hoursAgo -= (3 + Math.floor(Math.random() * 4))) {
+      const openTs = new Date(now - hoursAgo * 60 * 60 * 1000).toISOString();
+      doors.push({ ts: openTs, status: 'open' });
+      const closeOffsetMin = 2 + Math.floor(Math.random() * 30);
+      const closeTs = new Date(Date.parse(openTs) + closeOffsetMin * 60 * 1000).toISOString();
+      doors.push({ ts: closeTs, status: 'closed' });
+    }
+
+    // sort for safety
+    weight.sort((a,b)=>new Date(a.ts)-new Date(b.ts));
+    doors.sort((a,b)=>new Date(a.ts)-new Date(b.ts));
+    return { weight, doors };
+  }
+
+  function renderWeightChartInto(container, data, cycles) {
     const svg = container.querySelector('[data-weight-chart]');
     const legend = container.querySelector('[data-weight-legend]');
     const rangeLabel = container.querySelector('[data-weight-range]');
@@ -706,41 +977,98 @@
       rangeLabel.textContent = '';
       return;
     }
+    // Optionally reduce to points around cycles for a compact view
+    let pointsData = data;
+    if (Array.isArray(cycles) && cycles.length > 0) {
+      const recent = cycles.slice(-4);
+      // include weight points within ±2 minutes of open/close events
+      const keep = data.filter(d => {
+        return recent.some(c => Math.abs(new Date(d.ts) - new Date(c.openTs)) <= 2*60*1000 || Math.abs(new Date(d.ts) - new Date(c.closeTs)) <= 2*60*1000);
+      });
+      if (keep.length >= 2) pointsData = keep;
+    }
+
     const width = svg.viewBox.baseVal.width || 720;
     const height = svg.viewBox.baseVal.height || 320;
     const margin = { top: 20, right: 32, bottom: 36, left: 56 };
     const plotWidth = width - margin.left - margin.right;
     const plotHeight = height - margin.top - margin.bottom;
-    const minWeight = Math.min(...data.map((d) => d.weightKg));
-    const maxWeight = Math.max(...data.map((d) => d.weightKg));
+    const minWeight = Math.min(...pointsData.map((d) => d.weightKg));
+    const maxWeight = Math.max(...pointsData.map((d) => d.weightKg));
     const scaleY = (value) => {
       if (maxWeight === minWeight) return margin.top + plotHeight / 2;
       return margin.top + (maxWeight - value) * (plotHeight / (maxWeight - minWeight));
     };
     const scaleX = (index) => {
-      if (data.length === 1) return margin.left + plotWidth / 2;
-      return margin.left + (index / (data.length - 1)) * plotWidth;
+      if (pointsData.length === 1) return margin.left + plotWidth / 2;
+      return margin.left + (index / (pointsData.length - 1)) * plotWidth;
     };
-    const points = data.map((d, i) => `${scaleX(i)},${scaleY(d.weightKg)}`).join(' ');
-    const minTs = data[0].ts;
-    const maxTs = data[data.length - 1].ts;
+    const points = pointsData.map((d, i) => `${scaleX(i)},${scaleY(d.weightKg)}`).join(' ');
+    const minTs = pointsData[0].ts;
+    const maxTs = pointsData[pointsData.length - 1].ts;
     svg.innerHTML = `
       <rect x="${margin.left}" y="${margin.top}" width="${plotWidth}" height="${plotHeight}" fill="var(--bg)" stroke="var(--border)" stroke-width="1" rx="8"></rect>
       <polyline fill="none" stroke="var(--accent)" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" points="${points}"></polyline>
-      ${data.map((d, i) => `
+      ${pointsData.map((d, i) => `
         <circle cx="${scaleX(i)}" cy="${scaleY(d.weightKg)}" r="4" fill="var(--primary)" opacity="0.9">
           <title>${formatDateTimeMinutes(d.ts)} — ${d.weightKg.toFixed(2)} kg</title>
         </circle>
       `).join('')}
     `;
+    // Annotate cycle open/close markers
+    if (Array.isArray(cycles) && cycles.length > 0) {
+      const recent = cycles.slice(-4);
+      recent.forEach(c => {
+        // find closest displayed point to the closeTs (prefer close)
+        let closestIdx = 0;
+        let bestDist = Infinity;
+        pointsData.forEach((p, i) => {
+          const d = Math.abs(new Date(p.ts) - new Date(c.closeTs || c.openTs));
+          if (d < bestDist) { bestDist = d; closestIdx = i; }
+        });
+        const cx = scaleX(closestIdx);
+        const cy = scaleY(pointsData[closestIdx].weightKg);
+        svg.innerHTML += `<circle cx="${cx}" cy="${cy}" r="6" fill="rgba(255,166,0,0.9)" stroke="#fff" stroke-width="1.5"></circle>`;
+      });
+    }
     legend.textContent = `Min ${minWeight.toFixed(2)} kg · Max ${maxWeight.toFixed(2)} kg`;
     rangeLabel.textContent = `${formatDateTimeMinutes(minTs)} → ${formatDateTimeMinutes(maxTs)}`;
   }
 
-  function renderDoorTimelineInto(container, data) {
+  function renderDoorTimelineInto(container, data, cycles) {
     const timeline = container.querySelector('[data-door-timeline]');
     const summary = container.querySelector('[data-door-summary]');
     if (!timeline || !summary) return;
+    // If cycles present, render Recent Activity cards
+    if (Array.isArray(cycles) && cycles.length > 0) {
+      const recent = cycles.slice(-4).reverse();
+      timeline.innerHTML = '';
+      const wrap = document.createElement('div');
+      wrap.className = 'activity-list';
+      recent.forEach(c => {
+        const el = document.createElement('div');
+        el.className = 'activity-card';
+        const time = formatDateTimeMinutes(c.closeTs || c.openTs);
+        const deltaText = (c.delta !== null && c.delta !== undefined) ? formatKgDelta(c.delta) : '—';
+        const cls = c.delta > 0 ? 'activity-add' : (c.delta < 0 ? 'activity-remove' : 'activity-neutral');
+        el.innerHTML = `
+          <div class="activity-time">${time}</div>
+          <div class="activity-main ${cls}">
+            <div class="activity-icon"></div>
+            <div class="activity-body">
+              <div class="activity-title">Door cycle</div>
+              <div class="activity-desc">${c.openTs ? formatDateTimeMinutes(c.openTs) + ' → ' + formatDateTimeMinutes(c.closeTs) : ''}</div>
+            </div>
+            <div class="activity-delta">${deltaText}</div>
+          </div>
+        `;
+        wrap.appendChild(el);
+      });
+      timeline.appendChild(wrap);
+      summary.textContent = `${cycles.length} cycles · recent ${Math.min(4, cycles.length)}`;
+      return;
+    }
+
     if (!Array.isArray(data) || data.length === 0) {
       timeline.innerHTML = '<div class="history-placeholder">No door events recorded.</div>';
       summary.textContent = '';
@@ -899,6 +1227,120 @@
       toggleBtn.innerHTML = expanded ? 'Show Less ▲' : `View All (${items.length}) <span aria-hidden="true">⌄</span>`;
     } else if (toggleBtn) {
       toggleBtn.hidden = true;
+    }
+  }
+
+  // Bind message form and success dialog for the details view
+  function bindMessageModule(root, pantry) {
+    if (!root) return;
+    const cta = root.querySelector('.message-cta');
+    const formOverlay = root.querySelector('[data-message-form-overlay]');
+    const form = root.querySelector('[data-message-form]');
+    const textarea = root.querySelector('[data-message-text]');
+    const cancelBtn = root.querySelector('[data-message-cancel]');
+    const closeX = root.querySelector('[data-message-close]');
+    const successOverlay = root.querySelector('[data-success-overlay]');
+    const successClose = root.querySelector('[data-success-close]');
+    const successPreview = root.querySelector('[data-success-preview]');
+    const messageList = root.querySelector('.message-list');
+    const counter = root.querySelector('[data-message-count]');
+    const MAX_MESSAGE_CHARS = 500;
+
+    const show = (el) => {
+      if (!el) return;
+      el.removeAttribute('hidden');
+      requestAnimationFrame(() => el.classList.add('visible'));
+    };
+    const hide = (el, cb) => {
+      if (!el) return;
+      el.classList.remove('visible');
+      const done = () => { el.setAttribute('hidden', ''); el.removeEventListener('transitionend', done); if (cb) cb(); };
+      el.addEventListener('transitionend', done);
+      // Fallback
+      setTimeout(() => { if (!el.hasAttribute('hidden')) { done(); } }, 350);
+    };
+
+    // Character counter updater
+    const updateCounter = () => {
+      if (!counter || !textarea) return;
+      const len = textarea.value.length;
+      counter.textContent = `${len}/${MAX_MESSAGE_CHARS}`;
+      if (len > MAX_MESSAGE_CHARS) counter.style.color = 'var(--danger)';
+      else counter.style.color = 'var(--muted)';
+    };
+    if (textarea) {
+      textarea.setAttribute('placeholder', textarea.getAttribute('placeholder') || 'Share your experience with this pantry...');
+      textarea.addEventListener('input', updateCounter);
+      updateCounter();
+    }
+
+    if (cta) {
+      cta.onclick = () => {
+        if (formOverlay) show(formOverlay);
+        setTimeout(() => { if (textarea) textarea.focus(); }, 120);
+      };
+    }
+
+    const closeForm = (cb) => {
+      if (formOverlay) hide(formOverlay, () => { if (textarea) { textarea.value = ''; } if (counter) { updateCounter(); } if (cb) cb(); });
+    };
+
+    if (cancelBtn) cancelBtn.onclick = () => { closeForm(); };
+    if (closeX) closeX.onclick = () => { closeForm(); };
+
+    // Close on ESC key
+    const onKeydown = (e) => {
+      if (e.key === 'Escape' || e.key === 'Esc') {
+        // if success dialog visible, close it; otherwise close form
+        if (successOverlay && successOverlay.classList.contains('visible')) {
+          if (successOverlay) hide(successOverlay, () => { if (textarea) textarea.value = ''; });
+        } else {
+          closeForm();
+        }
+      }
+    };
+    document.addEventListener('keydown', onKeydown);
+
+    if (form) {
+      form.onsubmit = (e) => {
+        e.preventDefault();
+        const text = textarea ? textarea.value.trim() : '';
+        // show success dialog with preview
+        if (successPreview) successPreview.innerHTML = text ? escapeHtml(text).replace(/\n/g, '<br>') : '<em>(empty)</em>';
+        if (formOverlay) hide(formOverlay);
+        if (successOverlay) show(successOverlay);
+        // append the message to the list for immediate feedback
+        if (messageList) {
+          const article = document.createElement('article');
+          article.className = 'message-card';
+          article.innerHTML = `
+            <div class="message-avatar">${avatarTag(null, 40, 'You')}</div>
+            <div class="message-body"><p>${escapeHtml(text)}</p><time datetime="">Just now</time></div>
+          `;
+          messageList.insertBefore(article, messageList.firstChild);
+        }
+        // clear textarea and update counter
+        if (textarea) { textarea.value = ''; }
+        if (counter) updateCounter();
+      };
+    }
+
+    if (successClose) successClose.onclick = () => { if (successOverlay) hide(successOverlay, () => { if (textarea) textarea.value = ''; if (counter) updateCounter(); }); };
+
+    // allow clicking overlay background to close
+    if (formOverlay) formOverlay.onclick = (e) => { if (e.target === formOverlay) closeForm(); };
+    if (successOverlay) successOverlay.onclick = (e) => { if (e.target === successOverlay) hide(successOverlay, () => { if (textarea) textarea.value = ''; if (counter) updateCounter(); }); };
+
+    // Cleanup listener when details panel is torn down (best-effort): remove on navigation
+    const detailsPanel = document.getElementById('details');
+    if (detailsPanel) {
+      const observer = new MutationObserver(() => {
+        if (!detailsPanel.contains(root)) {
+          document.removeEventListener('keydown', onKeydown);
+          observer.disconnect();
+        }
+      });
+      observer.observe(detailsPanel, { childList: true, subtree: true });
     }
   }
 

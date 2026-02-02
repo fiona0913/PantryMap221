@@ -33,18 +33,111 @@
     const doors = [];
     items.forEach((item) => {
       const ts = item.ts;
-      const weightKg = Number(item.metrics?.weightKg ?? item.metrics?.weightkg ?? NaN);
+      // mass may be provided as `mass` (lbs) or in metrics.weightKg
+      let weightKg = NaN;
+      if (item.mass !== undefined && item.mass !== null) {
+        const massNum = Number(item.mass);
+        if (!Number.isNaN(massNum)) weightKg = massNum * 0.453592; // convert lb -> kg
+      }
+      const metricsWeight = Number(item.metrics?.weightKg ?? item.metrics?.weightkg ?? NaN);
+      if (Number.isNaN(weightKg) && !Number.isNaN(metricsWeight)) weightKg = metricsWeight;
       if (!Number.isNaN(weightKg)) {
         weight.push({ ts, weightKg });
       }
-      const door = item.flags?.door;
-      if (door) {
-        doors.push({ ts, status: door });
+      // door may be top-level `door` (0/1) or flags.door
+      const doorRaw = (item.door !== undefined && item.door !== null) ? item.door : item.flags?.door;
+      // normalize to numeric 0/1 or strings 'open'/'closed'
+      let doorState = null;
+      if (doorRaw === 1 || doorRaw === '1' || doorRaw === 'open' || doorRaw === 'opened') doorState = 'open';
+      if (doorRaw === 0 || doorRaw === '0' || doorRaw === 'closed' || doorRaw === 'close') doorState = 'closed';
+      if (doorState) {
+        doors.push({ ts, status: doorState, raw: doorRaw });
       }
     });
     weight.sort((a, b) => new Date(a.ts) - new Date(b.ts));
     doors.sort((a, b) => new Date(a.ts) - new Date(b.ts));
     return { weight, doors };
+  }
+
+  // Process raw history to detect open->close cycles and compute weight changes
+  function processDoorEvents(history) {
+    // history: array of raw items sorted ascending by ts
+    if (!Array.isArray(history) || history.length === 0) return [];
+    // Build a timeline of events with door and mass information
+    const timeline = history.map(item => {
+      const ts = item.ts;
+      let massKg = NaN;
+      if (item.mass !== undefined && item.mass !== null) {
+        const n = Number(item.mass);
+        if (!Number.isNaN(n)) massKg = n * 0.453592;
+      }
+      const metricsWeight = Number(item.metrics?.weightKg ?? item.metrics?.weightkg ?? NaN);
+      if (Number.isNaN(massKg) && !Number.isNaN(metricsWeight)) massKg = metricsWeight;
+      const doorRaw = (item.door !== undefined && item.door !== null) ? item.door : item.flags?.door;
+      let doorState = null;
+      if (doorRaw === 1 || doorRaw === '1' || doorRaw === 'open' || doorRaw === 'opened') doorState = 'open';
+      if (doorRaw === 0 || doorRaw === '0' || doorRaw === 'closed' || doorRaw === 'close') doorState = 'closed';
+      return { ts, massKg: Number.isFinite(massKg) ? massKg : null, doorState };
+    }).sort((a,b)=>new Date(a.ts)-new Date(b.ts));
+
+    const cycles = [];
+    let waitingOpen = null;
+    // We'll scan timeline and look for closed -> open (start) then open -> closed (end)
+    for (let i = 0; i < timeline.length; i++) {
+      const ev = timeline[i];
+      if (!ev.doorState) continue;
+      if (ev.doorState === 'open') {
+        // start an open cycle if not already started
+        if (!waitingOpen) {
+          waitingOpen = { openTs: ev.ts, openMass: ev.massKg };
+        } else {
+          // repeated open, update openMass if available
+          if (ev.massKg !== null) waitingOpen.openMass = ev.massKg;
+        }
+      }
+      if (ev.doorState === 'closed') {
+        if (waitingOpen) {
+          // close completes a cycle
+          const cycle = {
+            openTs: waitingOpen.openTs,
+            openMass: waitingOpen.openMass,
+            closeTs: ev.ts,
+            closeMass: ev.massKg,
+          };
+          // if openMass was null, try to find nearest mass before open
+          if (cycle.openMass === null) {
+            for (let j = timeline.indexOf(ev)-1; j >=0; j--) {
+              if (timeline[j].massKg !== null) { cycle.openMass = timeline[j].massKg; break; }
+            }
+          }
+          // if closeMass null, try to find nearest mass after close
+          if (cycle.closeMass === null) {
+            for (let j = timeline.indexOf(ev)+1; j < timeline.length; j++) {
+              if (timeline[j].massKg !== null) { cycle.closeMass = timeline[j].massKg; break; }
+            }
+          }
+          // compute delta if we have both
+          if (Number.isFinite(cycle.openMass) && Number.isFinite(cycle.closeMass)) {
+            cycle.delta = Number((cycle.closeMass - cycle.openMass).toFixed(3));
+          } else {
+            cycle.delta = null;
+          }
+          // duration in minutes
+          const openTsNum = Date.parse(cycle.openTs);
+          const closeTsNum = Date.parse(cycle.closeTs);
+          cycle.durationMin = Number.isFinite(openTsNum) && Number.isFinite(closeTsNum) ? Math.round((closeTsNum - openTsNum)/60000) : null;
+          cycles.push(cycle);
+          waitingOpen = null;
+        }
+      }
+    }
+    return cycles;
+  }
+
+  function formatKgDelta(delta) {
+    if (delta === null || delta === undefined || Number.isNaN(Number(delta))) return '—';
+    const sign = delta > 0 ? '+' : '';
+    return `${sign}${delta.toFixed(2)} kg`;
   }
 
   function renderSummary() {
@@ -91,7 +184,20 @@
     const legend = document.getElementById('weightLegend');
     const rangeLabel = document.getElementById('weightRange');
     if (!svg || !legend || !rangeLabel) return;
-    const data = state.weight;
+    // If we have processed recent cycles, show only points around those cycles
+    let data = state.weight;
+    if (Array.isArray(state.cycles) && state.cycles.length) {
+      // collect open and close points for the most recent 4 cycles (chronological)
+      const recent = state.cycles.slice(-4);
+      const points = [];
+      recent.forEach(c => {
+        if (c.openTs && c.openMass !== null) points.push({ ts: c.openTs, weightKg: c.openMass, marker: 'open', delta: c.delta });
+        if (c.closeTs && c.closeMass !== null) points.push({ ts: c.closeTs, weightKg: c.closeMass, marker: 'close', delta: c.delta });
+      });
+      // sort points by time
+      points.sort((a,b)=>new Date(a.ts)-new Date(b.ts));
+      data = points;
+    }
     if (!data.length) {
       svg.innerHTML = '';
       legend.textContent = 'No weight data available.';
@@ -119,11 +225,17 @@
     svg.innerHTML = `
       <rect x="${margin.left}" y="${margin.top}" width="${plotWidth}" height="${plotHeight}" fill="var(--bg)" stroke="var(--border)" stroke-width="1" rx="8"></rect>
       <polyline fill="none" stroke="var(--accent)" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" points="${points}"></polyline>
-      ${data.map((d, i) => `
-        <circle cx="${scaleX(i)}" cy="${scaleY(d.weightKg)}" r="4" fill="var(--primary)" opacity="0.9">
-          <title>${formatDateTime(d.ts)} — ${d.weightKg.toFixed(2)} kg</title>
+      ${data.map((d, i) => {
+        const title = `${formatDateTime(d.ts)} — ${d.weightKg.toFixed(2)} kg`;
+        // marker coloring: open/close if present
+        let fill = 'var(--primary)';
+        if (d.marker === 'open') fill = 'orange';
+        if (d.marker === 'close' && d.delta !== undefined && d.delta !== null) fill = d.delta > 0 ? 'green' : 'crimson';
+        return `
+        <circle cx="${scaleX(i)}" cy="${scaleY(d.weightKg)}" r="6" fill="${fill}" opacity="0.95">
+          <title>${title}</title>
         </circle>
-      `).join('')}
+      `}).join('')}
     `;
     legend.textContent = `Min ${minWeight.toFixed(2)} kg · Max ${maxWeight.toFixed(2)} kg`;
     rangeLabel.textContent = `${formatDateTime(minTs)} → ${formatDateTime(maxTs)}`;
@@ -133,24 +245,39 @@
     const container = document.getElementById('doorTimeline');
     const summary = document.getElementById('doorSummary');
     if (!container || !summary) return;
-    const data = state.doors;
-    if (!data.length) {
-      container.innerHTML = '<div class="history-placeholder">No door events recorded.</div>';
+    // Use processed cycles if available
+    const cycles = Array.isArray(state.cycles) ? state.cycles.slice().reverse() : [];
+    if (!cycles.length) {
+      container.innerHTML = '<div class="history-placeholder">No recent activity recorded.</div>';
       summary.textContent = '';
       return;
     }
-    const totalOpen = data.filter((d) => d.status === 'open').length;
-    container.innerHTML = `
-      <ul class="door-events">
-        ${data.slice(-40).reverse().map((d) => `
-          <li>
-            <span class="door-pill ${d.status}">${d.status}</span>
-            <span class="door-ts">${formatDateTime(d.ts)}</span>
-          </li>
-        `).join('')}
-      </ul>
-    `;
-    summary.textContent = `${data.length} events · ${totalOpen} openings`;
+    // take most recent 4 cycles
+    const recent = cycles.slice(0, 4);
+    container.innerHTML = recent.map(cycle => {
+      const time = formatDateTime(cycle.closeTs || cycle.openTs);
+      const delta = cycle.delta;
+      const isAdd = delta !== null && delta > 0;
+      const label = delta === null ? '—' : (isAdd ? `添加了 ${Math.abs(delta).toFixed(2)} kg` : `取走了 ${Math.abs(delta).toFixed(2)} kg`);
+      const icon = delta === null ? '📦' : (isAdd ? '📦' : '🧾');
+      const duration = cycle.durationMin !== null ? `${cycle.durationMin} 分钟` : '—';
+      const deltaDisplay = formatKgDelta(delta);
+      const cls = delta === null ? 'activity-neutral' : (isAdd ? 'activity-add' : 'activity-remove');
+      return `
+        <div class="activity-card ${cls}">
+          <div class="activity-time">${time}</div>
+          <div class="activity-main">
+            <div class="activity-icon">${icon}</div>
+            <div class="activity-body">
+              <div class="activity-title">${isAdd ? '添加物品' : '取走物品'}</div>
+              <div class="activity-desc">${label} · 门开启了 ${duration}</div>
+            </div>
+            <div class="activity-delta">${deltaDisplay}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+    summary.textContent = `${cycles.length} cycles · ${recent.length} shown`;
   }
 
   function renderTable() {
@@ -227,6 +354,8 @@
       const { weight, doors } = parseHistory(state.history);
       state.weight = weight;
       state.doors = doors;
+      // process open/close cycles from raw history for recent activity
+      state.cycles = processDoorEvents(state.history);
       document.getElementById('historyHeading').textContent = pantry.name || 'Sensor History';
       document.getElementById('historySubheading').textContent = `${pantry.address || ''}`;
       renderSummary();

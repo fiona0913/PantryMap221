@@ -1,0 +1,52 @@
+{
+  "pantry": {
+    "id": "beacon_hill_01",
+    "lastUpdated": "2026-01-29T21:33:13.613000",
+    "modules": {
+      "performance": {
+        "stockLevelPercent": 26,
+        "temperature": 10.7,
+        "doorVisits": 326,
+        "batteryStatus": "84% (Stable)"
+      },
+      "persona": {
+        "name": "Beacon Hill Community Pantry",
+        "imageUrl": "https://placehold.co/100x100/png?text=BH",
+        "isOpen": true,
+        "weeklyGoal": {
+          "current": 326,
+          "target": 500
+        },
+        "preferences": {
+          "accepting": ["Canned Veg", "Pasta", "Baby Formula"],
+          "notAccepting": ["Raw Meat", "Open Packages"]
+        }
+      },
+      "highlights": {
+        "hasAlert": true,
+        "alertMessage": "Temperature High (10.7°C) - Check Ventilation",
+        "wishlist": ["Peanut Butter", "Tuna"],
+        "recentActivity": [
+          {
+            "id": "1722",
+            "action": "Door Accessed",
+            "time": "2 mins ago",
+            "summary": "User visited"
+          },
+          {
+            "id": "1721",
+            "action": "Door Accessed",
+            "time": "15 mins ago",
+            "summary": "User visited"
+          },
+          {
+            "id": "1717",
+            "action": "Restock Detected",
+            "time": "2 hours ago",
+            "summary": "Weight increased by 2.5kg"
+          }
+        ]
+      }
+    }
+  }
+}

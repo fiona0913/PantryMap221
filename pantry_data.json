@@ -1,0 +1,476 @@
+{
+  "status": {
+    "device_id": "BeaconHill",
+    "current_weight": "27.63 kg",
+    "csvFile": "BeaconHill_2026-01-20_to_2026-01-27.csv",
+    "temp": "4.1\u00b0C",
+    "humidity": "83.4%",
+    "last_update": "2026-01-26 19:52"
+  },
+  "activities": [
+    {
+      "type": "decrease",
+      "change": "0.06kg",
+      "date": "Jan 26",
+      "time_start": "18:20",
+      "duration": "Active Session",
+      "action": "Consumed"
+    },
+    {
+      "type": "decrease",
+      "change": "0.21kg",
+      "date": "Jan 26",
+      "time_start": "17:28",
+      "duration": "Active Session",
+      "action": "Consumed"
+    },
+    {
+      "type": "increase",
+      "change": "1.39kg",
+      "date": "Jan 26",
+      "time_start": "15:45",
+      "duration": "Active Session",
+      "action": "Restocked"
+    },
+    {
+      "type": "decrease",
+      "change": "0.13kg",
+      "date": "Jan 26",
+      "time_start": "06:41",
+      "duration": "Active Session",
+      "action": "Consumed"
+    },
+    {
+      "type": "increase",
+      "change": "0.14kg",
+      "date": "Jan 26",
+      "time_start": "04:02",
+      "duration": "Active Session",
+      "action": "Restocked"
+    },
+    {
+      "type": "decrease",
+      "change": "4.53kg",
+      "date": "Jan 26",
+      "time_start": "01:05",
+      "duration": "Active Session",
+      "action": "Consumed"
+    },
+    {
+      "type": "increase",
+      "change": "0.49kg",
+      "date": "Jan 26",
+      "time_start": "00:35",
+      "duration": "Active Session",
+      "action": "Restocked"
+    },
+    {
+      "type": "decrease",
+      "change": "1.89kg",
+      "date": "Jan 25",
+      "time_start": "23:27",
+      "duration": "Active Session",
+      "action": "Consumed"
+    },
+    {
+      "type": "increase",
+      "change": "1.67kg",
+      "date": "Jan 25",
+      "time_start": "21:32",
+      "duration": "Active Session",
+      "action": "Restocked"
+    },
+    {
+      "type": "decrease",
+      "change": "2.12kg",
+      "date": "Jan 25",
+      "time_start": "20:05",
+      "duration": "Active Session",
+      "action": "Consumed"
+    },
+    {
+      "type": "increase",
+      "change": "1.21kg",
+      "date": "Jan 25",
+      "time_start": "17:37",
+      "duration": "Active Session",
+      "action": "Restocked"
+    },
+    {
+      "type": "decrease",
+      "change": "0.19kg",
+      "date": "Jan 25",
+      "time_start": "12:34",
+      "duration": "Active Session",
+      "action": "Consumed"
+    },
+    {
+      "type": "decrease",
+      "change": "8.94kg",
+      "date": "Jan 25",
+      "time_start": "10:26",
+      "duration": "Active Session",
+      "action": "Consumed"
+    },
+    {
+      "type": "decrease",
+      "change": "0.52kg",
+      "date": "Jan 25",
+      "time_start": "09:50",
+      "duration": "Active Session",
+      "action": "Consumed"
+    },
+    {
+      "type": "increase",
+      "change": "17.48kg",
+      "date": "Jan 25",
+      "time_start": "08:49",
+      "duration": "Active Session",
+      "action": "Restocked"
+    },
+    {
+      "type": "decrease",
+      "change": "1.48kg",
+      "date": "Jan 25",
+      "time_start": "06:50",
+      "duration": "Active Session",
+      "action": "Consumed"
+    },
+    {
+      "type": "decrease",
+      "change": "12.86kg",
+      "date": "Jan 25",
+      "time_start": "02:55",
+      "duration": "Active Session",
+      "action": "Consumed"
+    },
+    {
+      "type": "increase",
+      "change": "16.09kg",
+      "date": "Jan 25",
+      "time_start": "01:30",
+      "duration": "Active Session",
+      "action": "Restocked"
+    },
+    {
+      "type": "increase",
+      "change": "3.73kg",
+      "date": "Jan 24",
+      "time_start": "23:59",
+      "duration": "Active Session",
+      "action": "Restocked"
+    },
+    {
+      "type": "increase",
+      "change": "8.65kg",
+      "date": "Jan 24",
+      "time_start": "23:05",
+      "duration": "Active Session",
+      "action": "Restocked"
+    },
+    {
+      "type": "decrease",
+      "change": "0.63kg",
+      "date": "Jan 24",
+      "time_start": "22:26",
+      "duration": "Active Session",
+      "action": "Consumed"
+    },
+    {
+      "type": "increase",
+      "change": "1.95kg",
+      "date": "Jan 24",
+      "time_start": "20:02",
+      "duration": "Active Session",
+      "action": "Restocked"
+    },
+    {
+      "type": "decrease",
+      "change": "0.29kg",
+      "date": "Jan 24",
+      "time_start": "08:10",
+      "duration": "Active Session",
+      "action": "Consumed"
+    },
+    {
+      "type": "increase",
+      "change": "1.14kg",
+      "date": "Jan 24",
+      "time_start": "05:08",
+      "duration": "Active Session",
+      "action": "Restocked"
+    },
+    {
+      "type": "decrease",
+      "change": "2.37kg",
+      "date": "Jan 23",
+      "time_start": "01:32",
+      "duration": "Active Session",
+      "action": "Consumed"
+    },
+    {
+      "type": "decrease",
+      "change": "2.78kg",
+      "date": "Jan 22",
+      "time_start": "23:44",
+      "duration": "Active Session",
+      "action": "Consumed"
+    },
+    {
+      "type": "decrease",
+      "change": "0.13kg",
+      "date": "Jan 22",
+      "time_start": "22:40",
+      "duration": "Active Session",
+      "action": "Consumed"
+    },
+    {
+      "type": "increase",
+      "change": "1.82kg",
+      "date": "Jan 22",
+      "time_start": "21:14",
+      "duration": "Active Session",
+      "action": "Restocked"
+    },
+    {
+      "type": "decrease",
+      "change": "4.67kg",
+      "date": "Jan 22",
+      "time_start": "20:25",
+      "duration": "Active Session",
+      "action": "Consumed"
+    },
+    {
+      "type": "decrease",
+      "change": "3.03kg",
+      "date": "Jan 22",
+      "time_start": "19:43",
+      "duration": "Active Session",
+      "action": "Consumed"
+    },
+    {
+      "type": "decrease",
+      "change": "3.16kg",
+      "date": "Jan 22",
+      "time_start": "17:47",
+      "duration": "Active Session",
+      "action": "Consumed"
+    },
+    {
+      "type": "increase",
+      "change": "3.76kg",
+      "date": "Jan 22",
+      "time_start": "16:58",
+      "duration": "Active Session",
+      "action": "Restocked"
+    },
+    {
+      "type": "decrease",
+      "change": "1.29kg",
+      "date": "Jan 22",
+      "time_start": "15:57",
+      "duration": "Active Session",
+      "action": "Consumed"
+    },
+    {
+      "type": "decrease",
+      "change": "1.07kg",
+      "date": "Jan 22",
+      "time_start": "13:39",
+      "duration": "Active Session",
+      "action": "Consumed"
+    },
+    {
+      "type": "increase",
+      "change": "0.38kg",
+      "date": "Jan 22",
+      "time_start": "05:50",
+      "duration": "Active Session",
+      "action": "Restocked"
+    },
+    {
+      "type": "decrease",
+      "change": "1.07kg",
+      "date": "Jan 22",
+      "time_start": "03:00",
+      "duration": "Active Session",
+      "action": "Consumed"
+    },
+    {
+      "type": "increase",
+      "change": "9.87kg",
+      "date": "Jan 22",
+      "time_start": "01:56",
+      "duration": "Active Session",
+      "action": "Restocked"
+    },
+    {
+      "type": "increase",
+      "change": "1.79kg",
+      "date": "Jan 21",
+      "time_start": "21:14",
+      "duration": "Active Session",
+      "action": "Restocked"
+    },
+    {
+      "type": "decrease",
+      "change": "2.46kg",
+      "date": "Jan 21",
+      "time_start": "20:06",
+      "duration": "Active Session",
+      "action": "Consumed"
+    },
+    {
+      "type": "decrease",
+      "change": "2.52kg",
+      "date": "Jan 21",
+      "time_start": "16:49",
+      "duration": "Active Session",
+      "action": "Consumed"
+    },
+    {
+      "type": "increase",
+      "change": "5.03kg",
+      "date": "Jan 21",
+      "time_start": "15:52",
+      "duration": "Active Session",
+      "action": "Restocked"
+    },
+    {
+      "type": "decrease",
+      "change": "0.80kg",
+      "date": "Jan 21",
+      "time_start": "13:38",
+      "duration": "Active Session",
+      "action": "Consumed"
+    },
+    {
+      "type": "decrease",
+      "change": "1.10kg",
+      "date": "Jan 21",
+      "time_start": "11:56",
+      "duration": "Active Session",
+      "action": "Consumed"
+    },
+    {
+      "type": "decrease",
+      "change": "0.12kg",
+      "date": "Jan 21",
+      "time_start": "09:20",
+      "duration": "Active Session",
+      "action": "Consumed"
+    },
+    {
+      "type": "decrease",
+      "change": "0.65kg",
+      "date": "Jan 21",
+      "time_start": "06:39",
+      "duration": "Active Session",
+      "action": "Consumed"
+    },
+    {
+      "type": "decrease",
+      "change": "1.76kg",
+      "date": "Jan 21",
+      "time_start": "02:55",
+      "duration": "Active Session",
+      "action": "Consumed"
+    },
+    {
+      "type": "decrease",
+      "change": "6.87kg",
+      "date": "Jan 21",
+      "time_start": "00:55",
+      "duration": "Active Session",
+      "action": "Consumed"
+    },
+    {
+      "type": "increase",
+      "change": "4.94kg",
+      "date": "Jan 20",
+      "time_start": "23:35",
+      "duration": "Active Session",
+      "action": "Restocked"
+    },
+    {
+      "type": "decrease",
+      "change": "0.10kg",
+      "date": "Jan 20",
+      "time_start": "22:02",
+      "duration": "Active Session",
+      "action": "Consumed"
+    },
+    {
+      "type": "increase",
+      "change": "0.29kg",
+      "date": "Jan 20",
+      "time_start": "20:49",
+      "duration": "Active Session",
+      "action": "Restocked"
+    },
+    {
+      "type": "decrease",
+      "change": "0.25kg",
+      "date": "Jan 20",
+      "time_start": "18:53",
+      "duration": "Active Session",
+      "action": "Consumed"
+    },
+    {
+      "type": "decrease",
+      "change": "3.18kg",
+      "date": "Jan 20",
+      "time_start": "18:13",
+      "duration": "Active Session",
+      "action": "Consumed"
+    },
+    {
+      "type": "increase",
+      "change": "0.14kg",
+      "date": "Jan 20",
+      "time_start": "17:27",
+      "duration": "Active Session",
+      "action": "Restocked"
+    },
+    {
+      "type": "increase",
+      "change": "0.27kg",
+      "date": "Jan 20",
+      "time_start": "15:49",
+      "duration": "Active Session",
+      "action": "Restocked"
+    },
+    {
+      "type": "decrease",
+      "change": "0.07kg",
+      "date": "Jan 20",
+      "time_start": "14:37",
+      "duration": "Active Session",
+      "action": "Consumed"
+    },
+    {
+      "type": "decrease",
+      "change": "16.35kg",
+      "date": "Jan 20",
+      "time_start": "05:48",
+      "duration": "Active Session",
+      "action": "Consumed"
+    },
+    {
+      "type": "decrease",
+      "change": "20.08kg",
+      "date": "Jan 20",
+      "time_start": "01:56",
+      "duration": "Active Session",
+      "action": "Consumed"
+    },
+    {
+      "type": "increase",
+      "change": "13.64kg",
+      "date": "Jan 20",
+      "time_start": "00:29",
+      "duration": "Active Session",
+      "action": "Restocked"
+    }
+  ]
+}
