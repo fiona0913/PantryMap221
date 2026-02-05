@@ -329,21 +329,6 @@ nav a { text-decoration: none; }
   width: 100%;
   height: auto;
 }
-.detail-gauge-track {
-  fill: none;
-  stroke: rgba(148, 163, 184, 0.22);
-  stroke-width: 16;
-  stroke-linecap: round;
-}
-.detail-gauge-fill {
-  fill: none;
-  stroke: var(--accent);
-  stroke-width: 16;
-  stroke-linecap: round;
-  transform-origin: 50% 100%;
-  transform: rotate(-180deg);
-  transition: stroke-dashoffset 0.4s ease;
-}
 .detail-gauge-center {
   position: absolute;
   inset: 0;
@@ -778,18 +763,18 @@ nav a { text-decoration: none; }
 }
 .telemetry-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, 1fr);
   gap: 16px;
 }
 .telemetry-card {
   background: #f8fafc;
   border: 1px solid rgba(148, 163, 184, 0.25);
   border-radius: 18px;
-  padding: 16px;
+  padding: 18px 20px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  min-height: 88px;
+  gap: 8px;
+  min-height: 80px;
   box-shadow: 0 10px 20px rgba(15, 23, 42, 0.05);
 }
 .telemetry-label {
@@ -1407,9 +1392,6 @@ nav a { text-decoration: none; }
   .wishlist-grid {
     gap: 10px;
   }
-  .telemetry-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
 @media (max-width: 480px) {
@@ -1433,7 +1415,7 @@ nav a { text-decoration: none; }
     font-size: 14px;
   }
   .telemetry-grid {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: 1fr;
   }
 }
 

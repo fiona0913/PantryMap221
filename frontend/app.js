@@ -59,20 +59,37 @@
   function renderStockGauge(currentItems = 0, capacity = 40) {
     const safeCurrent = Number.isFinite(currentItems) ? currentItems : 0;
     const ratio = Math.max(0, Math.min(safeCurrent / capacity, 1));
-    const statusLabel = ratio >= 0.75 ? 'Full' : (ratio >= 0.4 ? 'Medium' : 'Low');
-    const radius = 80;
-    const circumference = Math.PI * radius;
-    const dashOffset = circumference * (1 - ratio);
+    // 0 = Low, 1 = Medium, 2 = Full
+    const level = ratio >= 0.75 ? 2 : (ratio >= 0.4 ? 1 : 0);
+    const statusLabel = ['Low', 'Medium', 'Full'][level];
+    const segColors = ['#e2e8f0', '#e2e8f0', '#e2e8f0'];
+    if (level === 0) segColors[0] = '#ef4444';
+    else if (level === 1) segColors[1] = '#eab308';
+    else { segColors[0] = '#52b788'; segColors[1] = '#52b788'; segColors[2] = '#52b788'; }
+    const statusColor = level === 0 ? '#ef4444' : (level === 1 ? '#eab308' : '#2d6a4f');
+    // Three equal arcs spanning 180° (60° each), with 4° gaps
+    const cx = 100, cy = 100, r = 80;
+    const gapDeg = 4;
+    const segDeg = (180 - 2 * gapDeg) / 3; // ~57.33°
+    function arcPath(startDeg, endDeg) {
+      const s = (Math.PI / 180) * (180 + startDeg);
+      const e = (Math.PI / 180) * (180 + endDeg);
+      const x1 = cx + r * Math.cos(s), y1 = cy + r * Math.sin(s);
+      const x2 = cx + r * Math.cos(e), y2 = cy + r * Math.sin(e);
+      return `M${x1.toFixed(2)} ${y1.toFixed(2)} A${r} ${r} 0 0 1 ${x2.toFixed(2)} ${y2.toFixed(2)}`;
+    }
+    const seg1 = arcPath(0, segDeg);
+    const seg2 = arcPath(segDeg + gapDeg, 2 * segDeg + gapDeg);
+    const seg3 = arcPath(2 * segDeg + 2 * gapDeg, 180);
     return `
       <div class="detail-gauge">
         <svg viewBox="0 0 200 120" class="detail-gauge-svg" role="img" aria-label="Stock level">
-          <path class="detail-gauge-track" d="M20 100 A80 80 0 0 1 180 100" />
-          <path class="detail-gauge-fill" d="M20 100 A80 80 0 0 1 180 100"
-            stroke-dasharray="${circumference}"
-            stroke-dashoffset="${dashOffset}" />
+          <path d="${seg1}" fill="none" stroke="${segColors[0]}" stroke-width="14" stroke-linecap="round"/>
+          <path d="${seg2}" fill="none" stroke="${segColors[1]}" stroke-width="14" stroke-linecap="round"/>
+          <path d="${seg3}" fill="none" stroke="${segColors[2]}" stroke-width="14" stroke-linecap="round"/>
         </svg>
         <div class="detail-gauge-center">
-          <div class="detail-gauge-status">${statusLabel}</div>
+          <div class="detail-gauge-status" style="color:${statusColor}">${statusLabel}</div>
           <div class="detail-gauge-count">${safeCurrent} Items</div>
         </div>
       </div>
@@ -445,16 +462,8 @@
             <span class="telemetry-value">${formatWeightDisplay(sensors.weightKg)}</span>
           </div>
           <div class="telemetry-card">
-            <span class="telemetry-label">Last activity</span>
-            <span class="telemetry-value">${formatDoorEvent(sensors.lastDoorEvent)}</span>
-          </div>
-          <div class="telemetry-card">
             <span class="telemetry-label">Updated</span>
             <span class="telemetry-value">${sensors.updatedAt ? formatDateTimeMinutes(sensors.updatedAt) : '--'}</span>
-          </div>
-          <div class="telemetry-card">
-            <span class="telemetry-label">Condition</span>
-            <span class="telemetry-pill">${formatCondition(sensors.foodCondition)}</span>
           </div>
         </div>
       </section>

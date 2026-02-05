@@ -5,7 +5,11 @@
       "Bash(findstr:*)",
       "Bash(tasklist:*)",
       "Bash(wmic process:*)",
-      "Bash(powershell -Command:*)"
+      "Bash(powershell -Command:*)",
+      "Bash(npx serve -l 3000 frontend)",
+      "Bash(npx serve:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nSave current progress: fix merge conflict in index.html and local changes\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
     ]
   }
 }
