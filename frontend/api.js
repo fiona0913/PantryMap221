@@ -644,8 +644,7 @@
 
   /**
    * Self-reported mode: estimate tot_reported_weight from donations in the last 24 hours.
-   * Backend already returns only donations within 24h; we do not re-filter by client time to avoid clock skew.
-   * Mapping: low_donation → 2 kg, medium_donation → 10 kg, high_donation → 25 kg.
+   * Cumulative: sum weight of all donations (low_donation → 2 kg, medium_donation → 10 kg, high_donation → 25 kg).
    * Returns { weightKg, updatedAt, source: 'donations' } or null if no donations in 24h.
    */
   API.getDonationBasedStock = async function getDonationBasedStock(pantryId) {
@@ -654,28 +653,19 @@
     try {
       const data = await API.getDonations(pantryId, 1, 100);
       const items = Array.isArray(data?.items) ? data.items : [];
-      // Backend already filters to 24h; use all returned items and sort by time descending (no client re-filter to avoid clock skew)
       const recent = items.slice().sort((a, b) => getDonationTimeMs(b) - getDonationTimeMs(a));
       if (recent.length === 0) return null;
 
-      const countLow = recent.filter((d) => (d.donationSize || '') === 'low_donation').length;
-      const countMedium = recent.filter((d) => (d.donationSize || '') === 'medium_donation').length;
-      const countHigh = recent.filter((d) => (d.donationSize || '') === 'high_donation').length;
-
-      let weightKg = null;
+      let weightKg = 0;
+      for (const d of recent) {
+        const size = (d.donationSize || '').trim();
+        const w = DONATION_WEIGHT_KG[size];
+        if (w != null && Number.isFinite(w)) weightKg += w;
+      }
       const firstTs = recent[0].createdAt ?? recent[0].created_at ?? recent[0].updatedAt ?? recent[0].timestamp;
       const updatedAt = firstTs != null && firstTs !== '' ? (typeof firstTs === 'string' ? firstTs : new Date(firstTs).toISOString()) : new Date().toISOString();
 
-      if (countHigh >= 2) {
-        weightKg = DONATION_WEIGHT_KG.high_donation;
-      } else if (countLow >= 5) {
-        weightKg = DONATION_WEIGHT_KG.medium_donation;
-      } else {
-        const size = (recent[0].donationSize || '').trim();
-        weightKg = DONATION_WEIGHT_KG[size] != null ? DONATION_WEIGHT_KG[size] : null;
-      }
-
-      if (weightKg == null || !Number.isFinite(weightKg)) return null;
+      if (!Number.isFinite(weightKg) || weightKg <= 0) return null;
       const tsStr = typeof updatedAt === 'string' ? updatedAt : (updatedAt instanceof Date ? updatedAt.toISOString() : String(updatedAt));
       return {
         weight: weightKg,

@@ -233,23 +233,18 @@ curl -i "http://localhost:7071/api/uploads/donations/read-sas?blobUrl=$BLOB_URL"
 npx serve -l 5500 frontend
 ```
 
-浏览器打开：
+浏览器打开（**单一页面端入口**）：
 ```
 http://127.0.0.1:5500/
 ```
-
-**My Pantry 页面入口**：
-- 从入口页：打开上述地址后点击 **「My Pantry（我的食品柜）」** 进入。
-- 直接访问：`http://127.0.0.1:5500/my-pantry.html`（或 `http://127.0.0.1:5500/entry.html` 再点 My Pantry）。
-
----
+或直接访问地图页：`http://127.0.0.1:5500/index.html`（根路径会由 `index.html` 作为默认文档打开）。
 
 ### Beacon Hill（pantry ID 254）传感器 API
 
 - 前端已通过 `frontend/data/device_to_pantry.json` 将设备 **BeaconHill** 映射为 **p-254**（pantry ID 254）。
 - 传感器数据请求：`GET /api/telemetry/latest?pantryId=254`（或 `pantryId=p-254`）。
 - **Azure Functions 后端（7071）**：在 `functions-backend/local.settings.json` 的 `Values` 中配置 `AZURE_SQL_*`，接口会从 Azure SQL 按 `device_id = BeaconHill` 取最新一条；未配置时返回 `{ latest: null }`，前端会退回到 `pantry_data.json`。
-- **Node 后端（如 5000）**：已提供 `GET /api/telemetry/latest?pantryId=254`，从本地 telemetry 表按 `pantry_id = '254'` 取最新一条。使用 Node 后端时需在前端设置 API 地址，例如在 `frontend/my-pantry.html` 或 `frontend/entry.html` 的 `<script>` 中：`window.PantryAPI_CONFIG = { apiBaseUrl: 'http://localhost:5000/api' };`（端口与你的 Node 服务一致即可）。
+- **Node 后端（如 5000）**：已提供 `GET /api/telemetry/latest?pantryId=254`，从本地 telemetry 表按 `pantry_id = '254'` 取最新一条。使用 Node 后端时需在前端设置 API 地址，例如在 `frontend/entry.html` 或 `frontend/index.html` 的 `<script>` 中：`window.PantryAPI_CONFIG = { apiBaseUrl: 'http://localhost:5000/api' };`（端口与你的 Node 服务一致即可）。
 
 ---
 

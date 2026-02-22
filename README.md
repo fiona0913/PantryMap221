@@ -18,6 +18,7 @@ Backend (two options)
 - `backend/` (Express, legacy): still used by some container/CI deployment scripts and runs on port `5000`, but it is not the default local dev path.
 
 Files
+- **前端入口**：`frontend/index.html`（单一页面端入口；访问根路径 `/` 时由静态服务返回该页）
 - `frontend/index.html`: Root HTML with map container and side panel
 - `frontend/styles.css`: Basic layout and responsive styles
 - `frontend/app.js`: App bootstrap, map init, marker handling, panel updates
@@ -29,7 +30,7 @@ Legacy
 - `legacy/app.js`, `legacy/api.js`: Deprecated copies that used to live in the repo root. Use the `frontend/` versions instead.
 - `legacy/frontend-data/mockData.json`: Deprecated demo dataset (not used by the app).
 - `legacy/fetch_data.py`: Optional Python script to pull telemetry from Azure SQL and write `pantry_data.json`; run from project root as `python legacy/fetch_data.py`. The app prefers the Azure Functions API and uses `frontend/pantry_data.json` as fallback.
-- `legacy/served_page_3000.html`: Snapshot of My Pantry page (dev/test, not used by the app).
+- `legacy/served_page_3000.html`: Snapshot of sensor history page (dev/test, not used by the app).
 - `legacy/pantry_data.json`: Backup copy of telemetry data; the live copy used by the frontend is `frontend/pantry_data.json`.
 
 Data Contract (initial)

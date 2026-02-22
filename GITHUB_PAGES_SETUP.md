@@ -1,10 +1,10 @@
-# GitHub Pages 设置说明 - My Pantry 页面
+# GitHub Pages 设置说明
 
 ## 快速链接
 
-设置完成后，你的 My Pantry 页面链接将是：
+设置完成后，你的主页面链接将是：
 
-**https://fiona0913.github.io/pantrymap/my-pantry.html**
+**https://fiona0913.github.io/pantrymap/index.html**
 
 ---
 
@@ -42,7 +42,6 @@ git push
 
 部署完成后，访问：
 
-- **My Pantry 页面**：https://fiona0913.github.io/pantrymap/my-pantry.html
 - **主页面**：https://fiona0913.github.io/pantrymap/index.html
 
 ---
@@ -52,7 +51,7 @@ git push
 - 首次部署可能需要几分钟时间
 - 如果看到 404，等待几分钟后刷新
 - 每次推送到 `main` 分支都会自动重新部署
-- 如果后端 API 在 Azure，记得在 `my-pantry.html` 中更新 `apiBaseUrl`
+- 如果后端 API 在 Azure，记得在前端入口或 `index.html` 中更新 `apiBaseUrl`
 
 ---
 

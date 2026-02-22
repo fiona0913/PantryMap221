@@ -278,7 +278,7 @@
         <div class="map-legend-title">Legend</div>
         <div class="map-legend-item"><span class="map-legend-pin" style="background:#3b82f6"></span> Fridge</div>
         <div class="map-legend-item"><span class="map-legend-pin" style="background:#f59e0b"></span> Shelf</div>
-        <div class="map-legend-item"><span class="map-legend-pin" style="background:#52b788"></span> Uncategorized</div>
+        <div class="map-legend-item"><span class="map-legend-pin" style="background:#52b788"></span> Fridge & Shelf</div>
       `;
       return div;
     };
@@ -901,47 +901,17 @@
     const stockSection = document.querySelector('.stock-section .stock-card');
     if (!stockSection) return;
     
-    // Recent donations within 24 hours (already filtered by caller)
+    // Recent donations within 24 hours (already filtered by caller). Stock = cumulative weight.
     const recentDonations = donations && donations.length > 0 ? donations : [];
-    
-    // Count by donationSize: 5+ low_donation (ONE OR FEW ITEMS) → medium; 2+ medium_donation (ABOUT 1 GROCERY BAG) → high
-    const countLow = recentDonations.filter(d => (d.donationSize || '') === 'low_donation').length;
-    const countMedium = recentDonations.filter(d => (d.donationSize || '') === 'medium_donation').length;
-    const countHigh = recentDonations.filter(d => (d.donationSize || '') === 'high_donation').length;
-    
-    let level = null;
-    let badgeLabel = 'Based on recent donation';
-    
-    if (countMedium >= 2) {
-      // 2+ "ABOUT ONE GROCERY BAG" → high_donation
-      level = 'high';
-      badgeLabel = 'Based on recent donations (2+ grocery bags)';
-    } else if (countLow >= 5) {
-      // 5+ "ONE OR FEW ITEMS" → medium_donation
-      level = 'medium';
-      badgeLabel = 'Based on recent donations (5+ small donations)';
+    const DONATION_WEIGHT_KG = { low_donation: 2, medium_donation: 10, high_donation: 25 };
+    let totalWeightKg = 0;
+    for (const d of recentDonations) {
+      const size = (d.donationSize || '').trim();
+      const w = DONATION_WEIGHT_KG[size];
+      if (w != null && Number.isFinite(w)) totalWeightKg += w;
     }
-    
-    // Fallback: use most recent donation's size
-    if (level == null) {
-      const mostRecentDonation = recentDonations.length > 0 ? recentDonations[0] : null;
-      if (!mostRecentDonation || !mostRecentDonation.donationSize) {
-        stockSection.innerHTML = `
-          <div class="stock-card-head">
-            <h2>Stock level</h2>
-            <span class="stock-source-badge stock-source-badge-inactive">Lack of donation information</span>
-          </div>
-          ${renderStockGauge(0, 40, 'inactive')}
-        `;
-        return;
-      }
-      const donationSize = mostRecentDonation.donationSize;
-      if (donationSize === 'low_donation') level = 'low';
-      else if (donationSize === 'medium_donation') level = 'medium';
-      else if (donationSize === 'high_donation') level = 'high';
-    }
-    
-    if (level == null) {
+
+    if (recentDonations.length === 0 || !Number.isFinite(totalWeightKg) || totalWeightKg <= 0) {
       stockSection.innerHTML = `
         <div class="stock-card-head">
           <h2>Stock level</h2>
@@ -951,13 +921,27 @@
       `;
       return;
     }
-    
+
+    const badge = window.PantryAPI && typeof window.PantryAPI.computeStockLevelFromWeight === 'function'
+      ? window.PantryAPI.computeStockLevelFromWeight(totalWeightKg)
+      : null;
+    if (!badge || !badge.level) {
+      stockSection.innerHTML = `
+        <div class="stock-card-head">
+          <h2>Stock level</h2>
+          <span class="stock-source-badge">Estimated from donations · ${Number(totalWeightKg).toFixed(1)} kg</span>
+        </div>
+        ${renderStockGauge(0, 40, 'medium')}
+      `;
+      return;
+    }
+
     stockSection.innerHTML = `
       <div class="stock-card-head">
         <h2>Stock level</h2>
-        <span class="stock-source-badge">${badgeLabel}</span>
+        <span class="stock-source-badge">Estimated from donations · ${Number(totalWeightKg).toFixed(1)} kg</span>
       </div>
-      ${renderStockGauge(0, 40, level)}
+      ${renderStockGauge(0, 40, badge.level)}
     `;
   }
 
