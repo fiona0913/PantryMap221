@@ -108,8 +108,8 @@
   const STOCK_PARAMS = {
     reasonableMin: -2,
     reasonableMax: 150,
-    low_weight: 5,   // kg: <= low_weight -> LOW; low_weight < w <= high_weight -> MEDIUM; > high_weight -> HIGH
-    high_weight: 25,
+    low_weight: 5,   // kg: <= low_weight -> LOW; low_weight < w < high_weight -> MEDIUM; >= high_weight -> HIGH (Full)
+    high_weight: 20, // >=20 kg = Full (e.g. 2× grocery bag, or 1× bag + 8× one-or-few)
   };
 
   function isWeightInReasonableRange(weightKg) {
@@ -126,7 +126,7 @@
     const n = coerceNumber(weightKg);
     if (n === null || !isWeightInReasonableRange(n)) return null;
     if (n <= STOCK_PARAMS.low_weight) return { level: 'low', label: 'Low Stock', cls: 'low' };
-    if (n <= STOCK_PARAMS.high_weight) return { level: 'medium', label: 'Medium Stock', cls: 'medium' };
+    if (n < STOCK_PARAMS.high_weight) return { level: 'medium', label: 'Medium Stock', cls: 'medium' };
     return { level: 'high', label: 'In Stock', cls: 'high' };
   }
 

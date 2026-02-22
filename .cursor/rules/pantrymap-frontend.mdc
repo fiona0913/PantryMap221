@@ -1,0 +1,24 @@
+---
+description: PantryMap frontend modification constraints — keep API and request logic unchanged
+globs: frontend/**/*
+alwaysApply: false
+---
+
+# PantryMap Frontend Constraints
+
+You are modifying PantryMap frontend.
+
+## Hard constraints
+
+1. **Do NOT** change PantryAPI baseURL selection logic (Azure-first + fallback).
+2. **Do NOT** change pantryId normalization logic or how pantryId is passed to API calls.
+3. **Do NOT** change donations endpoint contract:
+   - POST /api/donations
+   - GET /api/donations?pantryId=<string>&page=<number>&pageSize=<number>
+4. **Do NOT** introduce local-only persistence (localStorage/IndexedDB) for donations, wishlist, or messages.
+5. Any UI refactor must keep network requests identical (same URL, method, query params, payload shape).
+
+## Before finishing
+
+- Verify in code where donations GET/POST are called and ensure they still call the same endpoints with the same parameters.
+- Only update UI rendering and styling. Do not touch API layer (`api.js`) or request logic.
